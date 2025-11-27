@@ -658,8 +658,7 @@ local function turtleIsReady()
 end
 
 -- Program Start
-
-sleepForSeconds(4)
+sleepForSeconds(3)
 
 while true do
     
