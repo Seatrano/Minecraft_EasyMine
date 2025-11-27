@@ -27,6 +27,9 @@ local chestCoords = {
     direction = 2
 }
 
+local forward
+local avoidOtherTurtle
+
 local function sleepForSeconds(seconds)
     for i = 1, seconds do
         print("Sleeping... " .. (seconds - i + 1) .. "s remaining")
@@ -192,7 +195,78 @@ local function isTurtleAhead()
     return false
 end
 
-local function avoidOtherTurtle()
+
+local function isTurtleUp()
+    local success, data = turtle.inspectUp()
+    if success and data and data.name == "computercraft:turtle_advanced" then
+        return true
+    end
+    return false
+end
+
+local function isTurtleDown()
+    local success, data = turtle.inspectDown()
+    if success and data and data.name == "computercraft:turtle_advanced" then
+        return true
+    end
+    return false
+end
+
+local function isTurtleBack()
+    turtle.turnLeft()
+    turtle.turnLeft()
+    local success, data = turtle.inspect()
+    turtle.turnLeft()
+    turtle.turnLeft()
+    return success and data and data.name == "computercraft:turtle_advanced"
+end
+
+local function updateForwardCoords(direction)
+    if direction == 1 then
+        currentZ = currentZ - 1
+    elseif direction == 2 then
+        currentX = currentX + 1
+    elseif direction == 3 then
+        currentZ = currentZ + 1
+    elseif direction == 4 then
+        currentX = currentX - 1
+    end
+end
+
+
+forward = function()
+    while isTurtleAhead() or turtle.detect() do
+        if isTurtleAhead() then
+            if avoidOtherTurtle() then
+                break
+            end
+        else
+            turtle.dig()
+            liquidCheck()
+        end
+    end
+
+    -- versuche vorwärts; falls fehlschlägt, wiederhole (robuster)
+    while not turtle.forward() do
+        -- falls etwas neues blockiert: dig/retry
+        if isTurtleAhead() then
+            if not avoidOtherTurtle() then
+                -- wenn Ausweichen nicht möglich, kurz warten und weiter versuchen
+                sleep(0.2)
+            end
+        else
+            turtle.dig()
+            liquidCheck()
+        end
+    end
+
+    liquidCheck()
+    updateForwardCoords(direction)
+    sendMessage()
+    return true
+end
+
+avoidOtherTurtle = function()
     -- Merke Ausgangsrichtung
     local origDir = direction
 
@@ -233,43 +307,6 @@ local function avoidOtherTurtle()
 
     sleep(0.2)
     return false
-end
-
-local function isTurtleUp()
-    local success, data = turtle.inspectUp()
-    if success and data and data.name == "computercraft:turtle_advanced" then
-        return true
-    end
-    return false
-end
-
-local function isTurtleDown()
-    local success, data = turtle.inspectDown()
-    if success and data and data.name == "computercraft:turtle_advanced" then
-        return true
-    end
-    return false
-end
-
-local function isTurtleBack()
-    turtle.turnLeft()
-    turtle.turnLeft()
-    local success, data = turtle.inspect()
-    turtle.turnLeft()
-    turtle.turnLeft()
-    return success and data and data.name == "computercraft:turtle_advanced"
-end
-
-local function updateForwardCoords(direction)
-    if direction == 1 then
-        currentZ = currentZ - 1
-    elseif direction == 2 then
-        currentX = currentX + 1
-    elseif direction == 3 then
-        currentZ = currentZ + 1
-    elseif direction == 4 then
-        currentX = currentX - 1
-    end
 end
 
 local function back()
@@ -327,37 +364,6 @@ local function down()
     return true
 end
 
-local function forward()
-    while isTurtleAhead() or turtle.detect() do
-        if isTurtleAhead() then
-            if avoidOtherTurtle() then
-                break
-            end
-        else
-            turtle.dig()
-            liquidCheck()
-        end
-    end
-
-    -- versuche vorwärts; falls fehlschlägt, wiederhole (robuster)
-    while not turtle.forward() do
-        -- falls etwas neues blockiert: dig/retry
-        if isTurtleAhead() then
-            if not avoidOtherTurtle() then
-                -- wenn Ausweichen nicht möglich, kurz warten und weiter versuchen
-                sleep(0.2)
-            end
-        else
-            turtle.dig()
-            liquidCheck()
-        end
-    end
-
-    liquidCheck()
-    updateForwardCoords(direction)
-    sendMessage()
-    return true
-end
 
 
 -- Richtungscode:
