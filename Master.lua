@@ -4,7 +4,7 @@ local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
     x = 0,
-    y = 80,
+    y = 78,
     z = 0
 }
 
