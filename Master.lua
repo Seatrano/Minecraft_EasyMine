@@ -169,7 +169,7 @@ local function findChunk(turtleName)
 end
 
 
-local function padLeft(str, length)
+local function padRight(str, length)
     str = tostring(str or "?")
     if #str < length then
         return string.rep(" ", length - #str) .. str
@@ -178,7 +178,7 @@ local function padLeft(str, length)
     end
 end
 
-local function padRight(str, length)
+local function padLeft(str, length)
     str = tostring(str or "?")
     if #str < length then
         return str .. string.rep(" ", length - #str)

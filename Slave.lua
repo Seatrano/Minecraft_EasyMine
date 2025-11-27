@@ -21,9 +21,9 @@ local startCoords = {
 }
 
 local chestCoords = {
-    x = -223,
-    y = 70,
-    z = 1248
+    x = -1,
+    y = 79,
+    z = 0
 }
 
 local function sleepForSeconds(seconds)
