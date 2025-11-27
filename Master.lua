@@ -21,7 +21,7 @@ local function loadGlobalData()
     end
 end
 
-globalData = loadGlobalData() or {
+local globalData = loadGlobalData() or {
     startPoint = firstStartPoint,
     chunks = {},
     turtles = {}
