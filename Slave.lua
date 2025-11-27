@@ -391,6 +391,7 @@ local function testMovement(turnBefore, turnAfter, cx, cz)
     end
 
     local x1, y1, z1 = stableGPS()
+    print("testMovement: GPS before ->", x1, y1, z1)
     if not x1 then
         if turnAfter then
             turnAfter()
@@ -407,6 +408,7 @@ local function testMovement(turnBefore, turnAfter, cx, cz)
 
     os.sleep(0.3) -- GPS-Sync
     local x2, y2, z2 = stableGPS()
+    print("testMovement: GPS after  ->", x2, y2, z2)
 
     back()
 
@@ -426,8 +428,9 @@ end
 
 -- Bestimmt die Turtle-Richtung sicher
 local function getDirection()
-    while true do
-        print("Attempting to detect direction...")
+    local maxAttempts = 8
+    for attempt = 1, maxAttempts do
+        print("Attempting to detect direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
 
         -- 1) forward
         local dir = testMovement(nil, nil, currentX, currentZ)
@@ -458,10 +461,15 @@ local function getDirection()
             return dir
         end
 
-        print("No valid direction detected. Retrying in 1 second...")
+        print("No valid direction detected on this attempt. Retrying in 1 second...")
         os.sleep(1)
     end
+
+    -- Fallback: couldn't reliably detect direction. Use the current `direction` value (default set earlier)
+    print("Warning: Could not detect direction after " .. maxAttempts .. " attempts. Falling back to current direction: " .. directionToString(direction))
+    return direction
 end
+
 local function goToPosition(targetX, targetY, targetZ, targetDir)
     status = "Going to Position"
     print("Going to X:" .. targetX .. " Y:" .. targetY .. " Z:" .. targetZ .. " Dir:" .. directionToString(targetDir))
