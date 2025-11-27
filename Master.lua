@@ -9,6 +9,18 @@ local firstStartPoint = {
 }
 
 local maxDepth = -10
+
+function loadGlobalData()
+    if fs.exists("globalData.txt") then
+        local file = fs.open("globalData.txt", "r")
+        local content = file.readAll()
+        file.close()
+        return textutils.unserialize(content)
+    else
+        return nil
+    end
+end
+
 globalData = loadGlobalData() or {
     startPoint = firstStartPoint,
     chunks = {},
@@ -21,16 +33,7 @@ function saveGlobalData(localData)
     file.close()
 end
 
-function loadGlobalData()
-    if fs.exists("globalData.txt") then
-        local file = fs.open("globalData.txt", "r")
-        local content = file.readAll()
-        file.close()
-        return textutils.unserialize(content)
-    else
-        return nil
-    end
-end
+
 
 local sides = {"top", "bottom", "left", "right", "front", "back"}
 local modemSide = nil
