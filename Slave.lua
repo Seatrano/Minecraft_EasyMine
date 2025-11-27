@@ -659,7 +659,7 @@ end
 
 -- Program Start
 
-sleepForSeconds(5)
+sleepForSeconds(4)
 
 while true do
     
