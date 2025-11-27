@@ -328,11 +328,15 @@ end
 
 local function forward()
     while isTurtleAhead() or turtle.detect() do
+        print("Blockiert vorwärts.")
         if isTurtleAhead() then
+            print("Turtle vorwärts erkannt.")
             if avoidOtherTurtle() then
+                print("Erfolgreich ausgewichen.")
                 break
             end
         else
+            print("Blockiert vorwärts durch Block.")
             turtle.dig()
             liquidCheck()
         end
@@ -340,13 +344,17 @@ local function forward()
 
     -- versuche vorwärts; falls fehlschlägt, wiederhole (robuster)
     while not turtle.forward() do
+        print("Vorwärtsbewegung fehlgeschlagen.")
         -- falls etwas neues blockiert: dig/retry
         if isTurtleAhead() then
+            print("Turtle vorwärts erkannt.")
             if not avoidOtherTurtle() then
+                print("Konnte nicht ausweichen.")
                 -- wenn Ausweichen nicht möglich, kurz warten und weiter versuchen
                 sleep(0.2)
             end
         else
+            print("Blockiert vorwärts durch Block.")
             turtle.dig()
             liquidCheck()
         end
