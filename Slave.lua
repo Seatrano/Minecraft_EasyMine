@@ -703,7 +703,7 @@ if currentX and currentY and currentZ and direction then
         end
         connectToMaster()
         sleepForSeconds(3)
-        quarry(16, 16, startCoords.y - 1, direction)
+        quarry(16, 16, startCoords.y, direction)
     end
 
 else
