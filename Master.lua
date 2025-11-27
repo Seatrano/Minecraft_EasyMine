@@ -10,7 +10,7 @@ local firstStartPoint = {
 
 local maxDepth = -10
 
-function loadGlobalData()
+local function loadGlobalData()
     if fs.exists("globalData.txt") then
         local file = fs.open("globalData.txt", "r")
         local content = file.readAll()
