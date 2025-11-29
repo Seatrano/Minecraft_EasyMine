@@ -633,12 +633,16 @@ local function mineTripleLayer(length, width)
                 turnRight()
                 forward()
                 turnRight()
+                turtle.digUp()
+                turtle.digDown()
             else
                 turtle.digUp()
                 turtle.digDown()
                 turnLeft()
                 forward()
                 turnLeft()
+                turtle.digUp()
+                turtle.digDown()
             end
         end
     end
