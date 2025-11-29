@@ -1,4 +1,4 @@
-local version = "1.1"
+local version = "1.2"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -628,16 +628,16 @@ local function mineTripleLayer(length, width)
 
         if x < length then -- Nur drehen, wenn noch eine weitere Reihe folgt
             if x % 2 == 1 then
-                turnRight()
-                forward()
                 turtle.digUp()
                 turtle.digDown()
+                turnRight()
+                forward()
                 turnRight()
             else
-                turnLeft()
-                forward()
                 turtle.digUp()
                 turtle.digDown()
+                turnLeft()
+                forward()
                 turnLeft()
             end
         end
@@ -653,8 +653,6 @@ local function quarry(length, width, height, startDirection)
 
     for i = 1, layers do
         updateForComputer(currentY)
-        turtle.digUp()
-        turtle.digDown()
         mineTripleLayer(length, width)
 
         -- 3 Schritte runter, aber nur wenn noch Platz ist
