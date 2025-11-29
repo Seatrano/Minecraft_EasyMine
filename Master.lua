@@ -1,4 +1,4 @@
-local version = "1.1"
+local version = "1.2"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -225,10 +225,10 @@ while true do
 
     -- Nachricht von irgendeiner Turtle empfangen
     print("Waiting for messages from turtles...")
-    local id, msg = rednet.receive("MT", 1)
+    local id, msg = rednet.receive("MT")
     if msg then
         local data = textutils.unserialize(msg)
-        print("Message" .. data)
+        
         if data.type == "newConnection" then
             globalData.turtles[data.turtleName] = {
                 turtleName = data.turtleName,
