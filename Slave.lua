@@ -616,9 +616,9 @@ local function mineStrip(length)
             turnLeft()
             goToPosition(x, y, z, dir)
         end
-        forward()
         turtle.digUp()
         turtle.digDown()
+        forward()
     end
 end
 
