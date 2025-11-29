@@ -1,3 +1,4 @@
+local version = "1.0"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -191,7 +192,7 @@ local function fixGlobalData()
     saveGlobalData(globalData)
 end
 
-
+print("Master Computer Version " .. version)
 
 while true do
     local now = os.epoch("utc")
@@ -224,7 +225,7 @@ while true do
     local id, msg = rednet.receive("MT", 0)
     if msg then
         local data = textutils.unserialize(msg)
-
+        print("Message" .. data)
         if data.type == "newConnection" then
             globalData.turtles[data.turtleName] = {
                 turtleName = data.turtleName,
