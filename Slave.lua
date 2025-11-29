@@ -596,6 +596,16 @@ local function unload()
     turtle.select(1)
 end
 
+local function updateForComputer(height)
+    local data = {
+        type = "updateLayer",
+        turtleName = turtleName,
+        height = height,
+        chunkNumber = chunkNumber
+    }
+    rednet.broadcast(textutils.serialize(data), "MT")
+end
+
 local function mineStrip(length)
     for i = 1, length do
         status = "Mining"
@@ -610,20 +620,12 @@ local function mineStrip(length)
             goToPosition(x, y, z, dir)
         end
         forward()
+        turtle.digUp()
+        turtle.digDown()
     end
 end
 
-local function updateForComputer(height)
-    local data = {
-        type = "updateLayer",
-        turtleName = turtleName,
-        height = height,
-        chunkNumber = chunkNumber
-    }
-    rednet.broadcast(textutils.serialize(data), "MT")
-end
-
-local function mineLayer(length, width)
+local function mineTripleLayer(length, width)
     for x = 1, length do
         mineStrip(width - 1) -- Minen der aktuellen Reihe
 
@@ -646,14 +648,23 @@ end
 
 -- Main quarry function
 local function quarry(length, width, height, startDirection)
-    for y = 1, height do
+    local layers = math.ceil(height / 3)
+
+    for i = 1, layers do
         updateForComputer(currentY)
-        mineLayer(length, width)
-        if y < height then
-            down()
+        mineTripleLayer(length, width)
+
+        -- 3 Schritte runter, aber nur wenn noch Platz ist
+        if i < layers then
+            for d = 1, 3 do
+                if currentY > 0 then  -- Sicherheit
+                    down()
+                end
+            end
         end
     end
 end
+
 
 local function turtleIsReady()
     local slot = 1
