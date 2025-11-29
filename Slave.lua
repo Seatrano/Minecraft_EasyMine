@@ -1,3 +1,4 @@
+local version = "1.0"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -667,6 +668,7 @@ local function turtleIsReady()
 end
 
 -- Program Start
+print("Miner Turtle Version " .. version)
 sleepForSeconds(3)
 
 while true do
