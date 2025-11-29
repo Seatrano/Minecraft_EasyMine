@@ -1,4 +1,4 @@
-local version = "1.2"
+local version = "1.3"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
