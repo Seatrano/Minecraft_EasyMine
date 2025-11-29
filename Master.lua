@@ -1,4 +1,4 @@
-local version = "1.3"
+local version = "1.4"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -286,7 +286,7 @@ while true do
         end
 
         mon.setCursorPos(1, row)
-        
+
         if (t.status == "offline") then
             mon.setTextColour(colors.red)
         else
