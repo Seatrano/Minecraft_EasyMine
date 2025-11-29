@@ -198,6 +198,7 @@ while true do
     local now = os.epoch("utc")
 
     -- 1. Prüfe Chunks auf Timeout
+    print("Checking chunks for timeout...")
     if now - chunkLastCheck >= chunkTimeout then
         chunkLastCheck = now
         for _, chunk in ipairs(globalData.chunks) do
@@ -210,6 +211,7 @@ while true do
     end
 
     -- 2. Prüfe Turtles auf Timeout
+    print("Checking turtles for timeout...")
     if now - turtleLastCheck >= turtleTimeout then
         turtleLastCheck = now
         for name, t in pairs(globalData.turtles) do
@@ -222,7 +224,8 @@ while true do
     end
 
     -- Nachricht von irgendeiner Turtle empfangen
-    local id, msg = rednet.receive("MT", 0)
+    print("Waiting for messages from turtles...")
+    local id, msg = rednet.receive("MT", 1)
     if msg then
         local data = textutils.unserialize(msg)
         print("Message" .. data)

@@ -1,5 +1,5 @@
 -- startup.lua
-local url = "https://raw.githubusercontent.com/Seatrano/Minecraft_EasyMine/refs/heads/main/Master.lua"
+local url = "https://raw.githubusercontent.com/Seatrano/Minecraft_EasyMine/main/Master.lua"
 local fileName = "Computer"  -- die Datei, die ausgeführt wird
 
 -- Versuche, die aktuelle Datei von GitHub zu laden
