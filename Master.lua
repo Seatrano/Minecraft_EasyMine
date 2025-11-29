@@ -286,12 +286,11 @@ while true do
         end
 
         mon.setCursorPos(1, row)
-
-        local isOffline = not t.coordinates -- Beispielbedingung für offline
-        if isOffline then
-            mon.setBackgroundColor(colors.red)
+        
+        if (t.status == "offline") then
+            mon.setTextColour(colors.red)
         else
-            mon.setBackgroundColor(colors.black)
+            mon.setTextColour(colors.white)
         end
 
         local name = padLeft(t.turtleName, 4)
@@ -307,7 +306,6 @@ while true do
             name .. " X:" .. x .. " Y:" .. y .. " Z:" .. z .. " Dir:" .. dirStr .. " Fuel:" .. fuel .. " Chunk:" ..
                 chunk .. " Status:" .. status)
 
-        mon.setBackgroundColor(colors.black)
         row = row + 1
     end
 
