@@ -265,51 +265,75 @@ forward = function()
 end
 
 avoidOtherTurtle = function()
-    -- Merke Ausgangsrichtung
-    local origDir = direction
 
-    -- links ausweichen
-    turnLeft()
-    if not isTurtleAhead() and not turtle.detect() then
-        if forward() then
-            turnRight()
-            return true
+    while true do
+        -- Zufällige Wartezeit zwischen 1 und 5 Sekunden
+        local wait = math.random(1, 5)
+
+        ------------------------------------------------------------------
+        -- LINKS AUSWEICHEN
+        ------------------------------------------------------------------
+        turnLeft()
+        if not isTurtleAhead() then
+            if forward() then
+                -- 180° drehen
+                turnRight()
+                turnRight()
+
+                -- warten bis frei
+                while isTurtleAhead() do
+                    sleep(wait)
+                end
+
+                -- vorwärts bis erfolgreich
+                while not forward() do
+                    sleep(wait)
+                end
+
+                -- Richtung wiederherstellen
+                turnLeft()
+                return true
+            end
         end
-    end
-    -- zurücksetzen, falls noch nicht in Original
-    if direction ~= origDir then
-        turnTo(origDir)
-    end
 
-    -- rechts ausweichen
-    turnRight()
-    if not isTurtleAhead() and not turtle.detect() then
-        if forward() then
-            turnLeft()
-            return true
+        -- Richtung korrigieren, falls forward() oben nicht ging
+        turnRight()  
+
+
+        ------------------------------------------------------------------
+        -- RECHTS AUSWEICHEN
+        ------------------------------------------------------------------
+        turnRight()
+        if not isTurtleAhead() then
+            if forward() then
+                -- 180° drehen
+                turnLeft()
+                turnLeft()
+
+                -- warten bis frei
+                while isTurtleAhead() do
+                    sleep(wait)
+                end
+
+                -- vorwärts bis erfolgreich
+                while not forward() do
+                    sleep(wait)
+                end
+
+                -- Richtung wiederherstellen
+                turnRight()
+                return true
+            end
         end
-    end
-    if direction ~= origDir then
-        turnTo(origDir)
-    end
 
-    -- hoch
-    if not isTurtleUp() then
-        if up() then
-            return true
-        end
-    end
+        -- Richtung korrigieren
+        turnLeft()
 
-    -- runter
-    if not isTurtleDown() then
-        if down() then
-            return true
-        end
+        -- bevor der nächste Versuch beginnt → erneut zufällig warten
+        sleep(wait)
     end
-
-    sleep(0.2)
-    return false
 end
+
 
 local function back()
     while isTurtleBack() or not turtle.back() do
