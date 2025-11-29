@@ -1,6 +1,6 @@
 -- startup.lua
-local url = "https://raw.githubusercontent.com/Seatrano/Minecraft_EasyMine/main/Slave.lua"
-local fileName = "Miner"  -- die Datei, die ausgeführt wird
+local url = "https://raw.githubusercontent.com/Seatrano/Minecraft_EasyMine/main/Slave.lua?ts=" .. os.epoch("utc")
+local fileName = "Slave.lua"  -- die Datei, die ausgeführt wird
 
 -- Versuche, die aktuelle Datei von GitHub zu laden
 if http then
