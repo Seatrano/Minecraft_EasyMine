@@ -1,4 +1,4 @@
-local version = "1.2"
+local version = "1.3"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -616,9 +616,9 @@ local function mineStrip(length)
             turnLeft()
             goToPosition(x, y, z, dir)
         end
-        forward()
         turtle.digUp()
         turtle.digDown()
+        forward()
     end
 end
 
