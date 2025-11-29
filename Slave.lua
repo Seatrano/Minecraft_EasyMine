@@ -506,9 +506,6 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
     status = "Going to Position"
     print("Going to X:" .. targetX .. " Y:" .. targetY .. " Z:" .. targetZ .. " Dir:" .. directionToString(targetDir))
 
-    ---------------------------------------------------------------------------
-    -- 1. Y-Bewegung (hoch/runter)
-    ---------------------------------------------------------------------------
     while currentY < targetY do
         up() -- nutzt Ausweichlogik
     end
@@ -517,9 +514,6 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
         down() -- nutzt Ausweichlogik
     end
 
-    ---------------------------------------------------------------------------
-    -- 2. X-Bewegung (Ost/West)
-    ---------------------------------------------------------------------------
     if targetX > currentX then
         turnTo(2) -- East
         while currentX < targetX do
@@ -532,9 +526,6 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
         end
     end
 
-    ---------------------------------------------------------------------------
-    -- 3. Z-Bewegung (Nord/Süd)
-    ---------------------------------------------------------------------------
     if targetZ > currentZ then
         turnTo(3) -- South
         while currentZ < targetZ do
@@ -547,9 +538,6 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
         end
     end
 
-    ---------------------------------------------------------------------------
-    -- 4. Endausrichtung
-    ---------------------------------------------------------------------------
     turnTo(targetDir)
     sendMessage()
 end
