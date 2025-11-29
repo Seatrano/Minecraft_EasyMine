@@ -616,9 +616,9 @@ local function mineStrip(length)
             turnLeft()
             goToPosition(x, y, z, dir)
         end
+        forward()
         turtle.digUp()
         turtle.digDown()
-        forward()
     end
 end
 
@@ -653,6 +653,8 @@ local function quarry(length, width, height, startDirection)
 
     for i = 1, layers do
         updateForComputer(currentY)
+        turtle.digUp()
+        turtle.digDown()
         mineTripleLayer(length, width)
 
         -- 3 Schritte runter, aber nur wenn noch Platz ist
