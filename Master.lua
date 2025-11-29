@@ -34,8 +34,6 @@ function saveGlobalData(localData)
     file.close()
 end
 
-
-
 local sides = {"top", "bottom", "left", "right", "front", "back"}
 local modemSide = nil
 for _, side in ipairs(sides) do
@@ -169,7 +167,6 @@ local function findChunk(turtleName)
     return chunk
 end
 
-
 local function padRight(str, length)
     str = tostring(str or "?")
     if #str < length then
@@ -202,7 +199,6 @@ while true do
         chunkLastCheck = now
         for _, chunk in ipairs(globalData.chunks) do
             if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > chunkTimeout then
-                print("Chunk " .. chunk.chunkNumber .. " ist nicht mehr aktiv.")
                 chunk.workedByTurtleName = nil
                 chunk.chunkLastUpdate = nil
             end
@@ -225,7 +221,7 @@ while true do
     local id, msg = rednet.receive("MT")
     if msg then
         local data = textutils.unserialize(msg)
-        
+
         if data.type == "newConnection" then
             globalData.turtles[data.turtleName] = {
                 turtleName = data.turtleName,
@@ -291,6 +287,13 @@ while true do
 
         mon.setCursorPos(1, row)
 
+        local isOffline = not t.coordinates -- Beispielbedingung für offline
+        if isOffline then
+            mon.setBackgroundColor(colors.red)
+        else
+            mon.setBackgroundColor(colors.black)
+        end
+
         local name = padLeft(t.turtleName, 4)
         local x = padRight(t.coordinates and t.coordinates.x or "?", 4)
         local y = padRight(t.coordinates and t.coordinates.y or "?", 4)
@@ -303,6 +306,9 @@ while true do
         mon.write(
             name .. " X:" .. x .. " Y:" .. y .. " Z:" .. z .. " Dir:" .. dirStr .. " Fuel:" .. fuel .. " Chunk:" ..
                 chunk .. " Status:" .. status)
+
+        mon.setBackgroundColor(colors.black)
         row = row + 1
     end
+
 end
