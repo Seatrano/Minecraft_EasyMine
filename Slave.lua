@@ -530,6 +530,7 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
 end
 
 local function connectToMaster()
+    print("Connecting to Master...")
     local data = {
         type = "newConnection",
         turtleName = turtleName,
@@ -546,6 +547,7 @@ local function connectToMaster()
         local id, msg = rednet.receive(turtleName)
         if msg then
             local parsed = textutils.unserialize(msg)
+            print("Received message with msg:" .. msg)
             chunkNumber = parsed.chunkNumber
             print("Going to chunk " .. chunkNumber)
 
@@ -699,6 +701,8 @@ if currentX and currentY and currentZ and direction then
 
     while true do
         if not turtleIsReady() then
+            print ("Turtle not ready. Retrying in 10 seconds...")
+            sleepForSeconds(10)
             break
         end
         connectToMaster()
