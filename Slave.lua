@@ -437,6 +437,7 @@ local function getDirection()
     local maxAttempts = 8
     for attempt = 1, maxAttempts do
         print("Attempting to detect direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
+        sendMessage()
 
         -- 1) forward
         local dir = testMovement(nil, nil, currentX, currentZ)
@@ -720,6 +721,7 @@ if currentX and currentY and currentZ and direction then
 
     while true do
         if not turtleIsReady() then
+            sendMessage()
             print("Turtle not ready. Retrying in 10 seconds...")
             sleepForSeconds(10)
             break
