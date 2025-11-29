@@ -145,7 +145,6 @@ local function isInventoryFull()
     return true
 end
 
-
 local function directionToString(dir)
     if dir == 1 then
         return "North"
@@ -196,7 +195,6 @@ local function isTurtleAhead()
     return false
 end
 
-
 local function isTurtleUp()
     local success, data = turtle.inspectUp()
     if success and data and data.name == "computercraft:turtle_advanced" then
@@ -233,7 +231,6 @@ local function updateForwardCoords(direction)
         currentX = currentX - 1
     end
 end
-
 
 forward = function()
     while isTurtleAhead() or turtle.detect() do
@@ -298,12 +295,16 @@ avoidOtherTurtle = function()
 
     -- hoch
     if not isTurtleUp() then
-        if up() then return true end
+        if up() then
+            return true
+        end
     end
 
     -- runter
     if not isTurtleDown() then
-        if down() then return true end
+        if down() then
+            return true
+        end
     end
 
     sleep(0.2)
@@ -365,8 +366,6 @@ local function down()
     return true
 end
 
-
-
 -- Richtungscode:
 -- 1 = North, 2 = East, 3 = South, 4 = West
 
@@ -390,7 +389,6 @@ local function stableGPS()
     end
     return nil
 end
-
 
 -- Führt eine Testbewegung aus und bestimmt die Richtung
 local function testMovement(turnBefore, turnAfter, cx, cz)
@@ -474,7 +472,8 @@ local function getDirection()
     end
 
     -- Fallback: couldn't reliably detect direction. Use the current `direction` value (default set earlier)
-    print("Warning: Could not detect direction after " .. maxAttempts .. " attempts. Falling back to current direction: " .. directionToString(direction))
+    print("Warning: Could not detect direction after " .. maxAttempts ..
+              " attempts. Falling back to current direction: " .. directionToString(direction))
     return direction
 end
 
@@ -563,8 +562,6 @@ local function connectToMaster()
     end
 end
 
-
-
 local function refuel()
     status = "Refueling"
     sendMessage()
@@ -633,10 +630,14 @@ local function mineTripleLayer(length, width)
             if x % 2 == 1 then
                 turnRight()
                 forward()
+                turtle.digUp()
+                turtle.digDown()
                 turnRight()
             else
                 turnLeft()
                 forward()
+                turtle.digUp()
+                turtle.digDown()
                 turnLeft()
             end
         end
@@ -657,14 +658,13 @@ local function quarry(length, width, height, startDirection)
         -- 3 Schritte runter, aber nur wenn noch Platz ist
         if i < layers then
             for d = 1, 3 do
-                if currentY > 0 then  -- Sicherheit
+                if currentY > 0 then -- Sicherheit
                     down()
                 end
             end
         end
     end
 end
-
 
 local function turtleIsReady()
     local slot = 1
@@ -683,7 +683,7 @@ print("Miner Turtle Version " .. version)
 sleepForSeconds(3)
 
 while true do
-    
+
     currentX, currentY, currentZ = getGPS(5)
     sendMessage()
     if currentX then
@@ -714,7 +714,7 @@ if currentX and currentY and currentZ and direction then
 
     while true do
         if not turtleIsReady() then
-            print ("Turtle not ready. Retrying in 10 seconds...")
+            print("Turtle not ready. Retrying in 10 seconds...")
             sleepForSeconds(10)
             break
         end
