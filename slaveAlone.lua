@@ -21,6 +21,11 @@ local startCoords = {
     direction = 1
 }
 
+currentX = startCoords.x
+currentY = startCoords.y
+currentZ = startCoords.z
+direction = startCoords.direction
+
 local chestCoords = {
     x = -65,
     y = 102,
