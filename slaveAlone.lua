@@ -15,16 +15,16 @@ local direction = 2
 local status = "Idle"
 local chunkNumber = 0
 local startCoords = {
-    x = 0,
-    y = 0,
-    z = 0,
+    x = -64,
+    y = 102,
+    z = -128,
     direction = 1
 }
 
 local chestCoords = {
-    x = -1,
-    y = 79,
-    z = 0,
+    x = -65,
+    y = 102,
+    z = -128,
     direction = 2
 }
 
@@ -668,5 +668,4 @@ end
 print("Miner Turtle Version " .. version)
 sleepForSeconds(3)
 
-sleepForSeconds(3)
 quarry(16, 16, startCoords.y, direction)
