@@ -1,4 +1,4 @@
-local version = "1.4"
+local version = "1.5"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -517,39 +517,6 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
 
     turnTo(targetDir)
     end
-
-local function connectToMaster()
-    print("Connecting to Master...")
-    local data = {
-        type = "newConnection",
-        turtleName = turtleName,
-        coordinates = {
-            x = currentX,
-            y = currentY,
-            z = currentZ
-        },
-        direction = direction
-    }
-
-    rednet.broadcast(textutils.serialize(data), "MT")
-    while true do
-        local id, msg = rednet.receive(turtleName)
-        if msg then
-            local parsed = textutils.unserialize(msg)
-            print("Received message with msg:" .. msg)
-            chunkNumber = parsed.chunkNumber
-            print("Going to chunk " .. chunkNumber)
-
-            startCoords.x = parsed.chunkCoordinates.startX
-            startCoords.z = parsed.chunkCoordinates.startZ
-            startCoords.y = parsed.currentChunkDepth
-            startCoords.direction = parsed.startDirection or 2
-
-            goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
-            break
-        end
-    end
-end
 
 local function refuel()
     status = "Refueling"
