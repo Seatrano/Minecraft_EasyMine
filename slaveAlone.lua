@@ -1,4 +1,4 @@
-local version = "1.5"
+local version = "1.7"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -18,7 +18,7 @@ local startCoords = {
     x = -64,
     y = 102,
     z = -128,
-    direction = 1
+    direction = 2
 }
 
 currentX = startCoords.x
@@ -30,7 +30,7 @@ local chestCoords = {
     x = -65,
     y = 102,
     z = -128,
-    direction = 2
+    direction = 4
 }
 
 local forward
@@ -66,10 +66,9 @@ local function getGPS(timeout)
     end
 end
 
-
 local function dropTrash()
     status = "Dropping Trash"
-        for i = 2, 16 do
+    for i = 2, 16 do
         local item = turtle.getItemDetail(i)
         if item and trash[item.name] then
             turtle.select(i)
@@ -149,13 +148,13 @@ end
 -- Dreht die Turtle nach rechts und aktualisiert currentDir
 local function turnRight()
     turtle.turnRight()
-        direction = (direction % 4) + 1 -- Nord(1)->Ost(2)->Süd(3)->West(4)->Nord(1)
+    direction = (direction % 4) + 1 -- Nord(1)->Ost(2)->Süd(3)->West(4)->Nord(1)
 end
 
 -- Dreht die Turtle nach links und aktualisiert currentDir
 local function turnLeft()
     turtle.turnLeft()
-        direction = (direction - 2) % 4 + 1 -- Nord(1)->West(4)->Süd(3)->Ost(2)->Nord(1)
+    direction = (direction - 2) % 4 + 1 -- Nord(1)->West(4)->Süd(3)->Ost(2)->Nord(1)
 end
 
 local function turnTo(targetDir)
@@ -168,7 +167,7 @@ local function turnTo(targetDir)
     elseif diff == 3 then
         turtle.turnLeft()
     end
-        direction = targetDir
+    direction = targetDir
 end
 
 local function isTurtleAhead()
@@ -244,7 +243,7 @@ forward = function()
 
     liquidCheck()
     updateForwardCoords(direction)
-        return true
+    return true
 end
 
 avoidOtherTurtle = function()
@@ -339,7 +338,7 @@ local function back()
         currentX = currentX + 1
     end
 
-        return true
+    return true
 end
 
 local function up()
@@ -352,7 +351,7 @@ local function up()
     end
 
     currentY = currentY + 1
-        return true
+    return true
 end
 
 local function down()
@@ -365,7 +364,7 @@ local function down()
     end
 
     currentY = currentY - 1
-        return true
+    return true
 end
 
 -- Richtungscode:
@@ -439,7 +438,7 @@ local function getDirection()
     local maxAttempts = 8
     for attempt = 1, maxAttempts do
         print("Attempting to detect direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
-        
+
         -- 1) forward
         local dir = testMovement(nil, nil, currentX, currentZ)
         if dir then
@@ -516,11 +515,11 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
     end
 
     turnTo(targetDir)
-    end
+end
 
 local function refuel()
     status = "Refueling"
-    
+
     for slot = 2, 16 do
         turtle.select(slot)
         local count = turtle.getItemCount(slot)
@@ -541,26 +540,16 @@ end
 local function unload()
     for i = 2, 16 do
         status = "Unloading"
-                turtle.select(i)
+        turtle.select(i)
         turtle.dropUp()
     end
     turtle.select(1)
 end
 
-local function updateForComputer(height)
-    local data = {
-        type = "updateLayer",
-        turtleName = turtleName,
-        height = height,
-        chunkNumber = chunkNumber
-    }
-    rednet.broadcast(textutils.serialize(data), "MT")
-end
-
 local function mineStrip(length)
     for i = 1, length do
         status = "Mining"
-                if isInventoryFull() then
+        if isInventoryFull() then
             refuel()
             local x, y, z, dir = currentX, currentY, currentZ, direction
             goToPosition(chestCoords.x, chestCoords.y - 1, chestCoords.z, chestCoords.direction)
@@ -604,6 +593,7 @@ local function mineTripleLayer(length, width)
 
     -- Nach Beenden der Ebene zurück zum Start
     goToPosition(startCoords.x, currentY, startCoords.z, 2)
+    turnLeft()
 end
 
 -- Main quarry function
@@ -621,18 +611,6 @@ local function quarry(length, width, height, startDirection)
                 end
             end
         end
-    end
-end
-
-local function turtleIsReady()
-    local slot = 1
-    local detail = turtle.getItemDetail(slot)
-    if detail and detail.name == "minecraft:bucket" and detail.count == 1 then
-        return true
-    else
-        print("Please place a single bucket in slot 1 for refueling.")
-        goToPosition(chestCoords.x, chestCoords.y, chestCoords.z, chestCoords.direction)
-        return false
     end
 end
 
