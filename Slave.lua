@@ -686,10 +686,9 @@ local function quarry(length, width, height, startDirection)
         updateForComputer(currentY)
         mineTripleLayer(length, width)
 
-        -- 3 Schritte runter, aber nur wenn noch Platz ist
         if i < layers then
             for d = 1, 3 do
-                if currentY > 0 then -- Sicherheit
+                if currentY > -60 then
                     down()
                 end
             end
