@@ -22,9 +22,9 @@ local startCoords = {
 }
 
 local chestCoords = {
-    x = -1,
-    y = 79,
-    z = 0,
+    x = 528,
+    y = 67,
+    z = -80,
     direction = 2
 }
 

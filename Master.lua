@@ -1,12 +1,12 @@
-local version = "1.4"
+local version = "2.0"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
-    x = 0,
-    y = 78,
-    z = 0
+    x = 528,
+    y = 67,
+    z = -80
 }
 
 local maxDepth = -10
