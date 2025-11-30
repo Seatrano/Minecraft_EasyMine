@@ -1,4 +1,4 @@
-local version = "1.8"
+local version = "1.9"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -602,12 +602,9 @@ local function quarry(length, width, height, startDirection)
     for i = 1, layers do
         mineTripleLayer(length, width)
 
-        -- 3 Schritte runter, aber nur wenn noch Platz ist
         if i < layers then
             for d = 1, 3 do
-                if currentY > 0 then -- Sicherheit
-                    down()
-                end
+                down()
             end
         end
     end
