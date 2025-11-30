@@ -1,4 +1,4 @@
-local version = "1.7"
+local version = "1.8"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -593,7 +593,6 @@ local function mineTripleLayer(length, width)
 
     -- Nach Beenden der Ebene zurück zum Start
     goToPosition(startCoords.x, currentY, startCoords.z, 2)
-    turnLeft()
 end
 
 -- Main quarry function
