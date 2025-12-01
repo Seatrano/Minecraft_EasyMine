@@ -6,10 +6,10 @@ local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
     x = 528,
     y = 67,
-    z = -80
+    z = -81
 }
 
-local maxDepth = -10
+local maxDepth = -60
 
 local function loadGlobalData()
     if fs.exists("globalData.txt") then
@@ -28,7 +28,7 @@ local globalData = loadGlobalData() or {
     turtles = {}
 }
 
-function saveGlobalData(localData)
+local function saveGlobalData(localData)
     local file = fs.open("globalData.txt", "w")
     file.write(textutils.serialize(localData))
     file.close()
