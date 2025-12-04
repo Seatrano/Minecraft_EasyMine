@@ -1,4 +1,4 @@
-local version = "3.2"
+local version = "3.3"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -65,6 +65,7 @@ mon.write("Warte auf Daten...")
 -- Gibt die Koordinaten des Chunks x zurück
 local function getChunkCoordinates(firstStartPoint, chunkNumber)
     local step = 16
+    print("FirstStartpoint x=" .. firstStartPoint.x .. " z=" .. firstStartPoint.z)
     local x, z = firstStartPoint.x, firstStartPoint.z
     local dir = 1 -- 1=right, 2=up, 3=left, 4=down    
     local steps_in_dir = 1
@@ -199,7 +200,7 @@ local function fixGlobalData()
 end
 
 print("Master Computer Version " .. version)
-fixGlobalData()
+-- fixGlobalData()
 
 while true do
     local now = os.epoch("utc")
