@@ -1,4 +1,4 @@
-local version = "1.9"
+local version = "2.0"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -23,8 +23,8 @@ local startCoords = {
 
 local chestCoords = {
     x = 96,
-    y = 64,
-    z = -255,
+    z = 64,
+    y = 255,
     direction = 2
 }
 

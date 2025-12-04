@@ -1,12 +1,12 @@
-local version = "3.5"
+local version = "3.7"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
     x = 96,
-    y = 254,
     z = 64,
+    y = 254,
 }
 
 local maxDepth = -60
@@ -188,12 +188,6 @@ end
 
 
 local function fixGlobalData()
-    globalData.chunks = {}
-    globalData.turtles = {} 
-    globalData.firstStartPoint.x = 96
-    globalData.firstStartPoint.y = 63
-    globalData.firstStartPoint.z = -255
-
     saveGlobalData(globalData)
     print("globalData firstStartpoint x = " .. globalData.firstStartPoint.x ..
               " y = " .. globalData.firstStartPoint.y .. " z = " .. globalData.firstStartPoint.z)
