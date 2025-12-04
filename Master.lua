@@ -1,12 +1,12 @@
-local version = "3.4"
+local version = "3.5"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
     x = 96,
-    y = 63,
-    z = -255,
+    y = 254,
+    z = 64,
 }
 
 local maxDepth = -60
@@ -63,7 +63,7 @@ mon.setCursorPos(1, 1)
 mon.write("Warte auf Daten...")
 
 -- Gibt die Koordinaten des Chunks x zurück
-local function getChunkCoordinates(firstStartPoint, chunkNumber)
+local function getChunkCoordinates(chunkNumber)
     local step = 16
     print("FirstStartpoint x=" .. firstStartPoint.x .. " z=" .. firstStartPoint.z)
     local x, z = firstStartPoint.x, firstStartPoint.z
@@ -134,7 +134,7 @@ local function getOrCreateChunk(n)
     end
 
     -- Muss erzeugt werden → Spiral berechnen
-    local coords = getChunkCoordinates(globalData.startPoint, n)
+    local coords = getChunkCoordinates(n)
 
     local newChunk = {
         chunkNumber = n,
