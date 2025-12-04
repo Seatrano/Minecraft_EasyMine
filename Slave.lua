@@ -21,6 +21,7 @@ local startCoords = {
     direction = 1
 }
 
+
 local chestCoords = {
     x = 528,
     y = 67,
