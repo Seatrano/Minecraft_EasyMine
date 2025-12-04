@@ -1,4 +1,4 @@
-local version = "3.1"
+local version = "3.2"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -194,6 +194,8 @@ local function fixGlobalData()
     globalData.firstStartPoint.z = -255
 
     saveGlobalData(globalData)
+    print("globalData firstStartpoint x = " .. globalData.firstStartPoint.x ..
+              " y = " .. globalData.firstStartPoint.y .. " z = " .. globalData.firstStartPoint.z)
 end
 
 print("Master Computer Version " .. version)
