@@ -201,37 +201,60 @@ end
 
 local function avoidTurtleByYAxis()
     if direction == 1 or direction == 2 then
+        -- Ausweichen nach unten
         while true do
-            if not isTurtleDown() and turtle.down() then
-                break
+            if not isTurtleDown() then
+                if not turtle.down() then
+                    turtle.digDown()
+                else
+                    break
+                end
             end
             sleepForSeconds(1)
         end
 
         sleepForSeconds(3)
 
+        -- Ausweichen nach oben
         while true do
-            if not isTurtleUp() and turtle.up() then
-                break
+            if not isTurtleUp() then
+                if not turtle.up() then
+                    turtle.digUp()
+                else
+                    break
+                end
             end
+            sleepForSeconds(1)
         end
     else
         sleepForSeconds(1)
     end
 end
 
+
 local function avoidTurtleByForward()
     if direction == 1 or direction == 2 then
         while true do
-            if not isTurtleAhead() and turtle.forward() then
-                break
+            if not isTurtleAhead() then
+                if not turtle.forward() then
+                    turtle.dig()
+                else
+                    break
+                end
             end
             sleepForSeconds(1)
         end
+
         sleepForSeconds(3)
+
+        -- Zurück ausweichen
         while true do
-            if not isTurtleAhead() and turtle.back() then
-                break
+            if not isTurtleAhead() then
+                if not turtle.back() then
+
+                else
+                    break
+                end
             end
             sleepForSeconds(1)
         end
@@ -243,7 +266,7 @@ end
 local function up()
     while true do
         if isTurtleUp() then
-            avoidTurtleByForward()
+            avoidTurtleByYAxis()
 
         elseif turtle.detectUp() then
             turtle.digUp()
