@@ -65,7 +65,6 @@ mon.write("Warte auf Daten...")
 -- Gibt die Koordinaten des Chunks x zurück
 local function getChunkCoordinates(chunkNumber)
     local step = 16
-    print("FirstStartpoint x=" .. firstStartPoint.x .. " z=" .. firstStartPoint.z)
     local x, z = firstStartPoint.x, firstStartPoint.z
     local dir = 1 -- 1=right, 2=up, 3=left, 4=down    
     local steps_in_dir = 1
