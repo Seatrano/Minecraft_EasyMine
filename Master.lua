@@ -1,4 +1,4 @@
-local version = "2.0"
+local version = "2.1"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -191,6 +191,7 @@ local function fixGlobalData()
 end
 
 print("Master Computer Version " .. version)
+fixGlobalData()
 
 while true do
     local now = os.epoch("utc")
