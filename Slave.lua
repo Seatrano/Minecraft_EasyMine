@@ -1,4 +1,4 @@
-local version = "1.7"
+local version = "1.8"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -20,7 +20,6 @@ local startCoords = {
     z = 0,
     direction = 1
 }
-
 
 local chestCoords = {
     x = 528,
@@ -634,18 +633,6 @@ local function quarry(length, width, height, startDirection)
     end
 end
 
-local function turtleIsReady()
-    local slot = 1
-    local detail = turtle.getItemDetail(slot)
-    if detail and detail.name == "minecraft:bucket" and detail.count == 1 then
-        return true
-    else
-        print("Please place a single bucket in slot 1 for refueling.")
-        goToPosition(chestCoords.x, chestCoords.y, chestCoords.z, chestCoords.direction)
-        return false
-    end
-end
-
 -- Program Start
 print("Miner Turtle Version " .. version)
 sleepForSeconds(3)
@@ -681,12 +668,6 @@ if currentX and currentY and currentZ and direction then
         "facing direction:" .. directionToString(direction))
 
     while true do
-        if not turtleIsReady() then
-            sendMessage()
-            print("Turtle not ready. Retrying in 10 seconds...")
-            sleepForSeconds(10)
-            break
-        end
         connectToMaster()
         sleepForSeconds(3)
         quarry(16, 16, startCoords.y, direction)
