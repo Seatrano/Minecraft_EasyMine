@@ -186,6 +186,7 @@ local function padLeft(str, length)
 end
 
 local function fixGlobalData()
+    globalData.chunks[6].currentChunkDepth = 65
     saveGlobalData(globalData)
 end
 
