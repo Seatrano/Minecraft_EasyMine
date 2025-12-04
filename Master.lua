@@ -1,4 +1,4 @@
-local version = "2.7"
+local version = "2.8"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -188,6 +188,7 @@ end
 local function fixGlobalData()
     globalData.chunks = {}
     globalData.turtles = {} 
+    globalData.firstStartPoint = firstStartPoint
     saveGlobalData(globalData)
 end
 
