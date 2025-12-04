@@ -35,7 +35,6 @@ local function sleepForSeconds(seconds)
     end
 end
 
-
 local function getGPS(timeout)
     timeout = timeout or 5 -- Sekunden für gps.locate()
 
@@ -231,7 +230,6 @@ local function avoidTurtleByYAxis()
     end
 end
 
-
 local function avoidTurtleByForward()
     if direction == 1 or direction == 2 then
         while true do
@@ -303,7 +301,7 @@ end
 
 local function forward()
 
-     while true do
+    while true do
         if isTurtleAhead() then
             print("Turtle detected ahead, avoiding by Y axis")
             avoidTurtleByYAxis()
@@ -316,7 +314,6 @@ local function forward()
             break
         end
     end
-
 
     if direction == 1 then
         currentZ = currentZ - 1
@@ -355,43 +352,46 @@ local function stableGPS()
     end
 end
 local function testMovement(turnBefore, turnAfter)
-    if turnBefore then turnBefore() end
+    if turnBefore then
+        turnBefore()
+    end
 
     local x1, y1, z1 = stableGPS()
     print("GPS before move: ", x1, y1, z1)
     if not x1 then
-        if turnAfter then turnAfter() end
+        if turnAfter then
+            turnAfter()
+        end
         return nil
     end
 
-    -- Sicher vorwärts bewegen
-    while not forward() do
-        print("Turtle detected ahead during test movement, avoiding by Y axis")
-        avoidTurtleByYAxis()
-    end
+    forward()
 
     os.sleep(1)
     local x2, y2, z2 = stableGPS()
     print("GPS after move: ", x2, y2, z2)
     if not x2 then
-        if turnAfter then turnAfter() end
+        if turnAfter then
+            turnAfter()
+        end
         return nil
     end
 
     -- Zurück-Test
-    turnLeft(); turnLeft()
-    while not turtle.forward() do
-        avoidTurtleByYAxis()
-    end
-    turnLeft(); turnLeft()
+    turnLeft()
+    turnLeft()
+    forward()
+    turnLeft()
+    turnLeft()
 
-    if turnAfter then turnAfter() end
+    if turnAfter then
+        turnAfter()
+    end
 
     local dx = x2 - x1
     local dz = z2 - z1
     return detectDirectionFromDelta(dx, dz)
 end
-
 
 -- Bestimmt die Turtle-Richtung sicher
 local function getDirection()
