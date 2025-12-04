@@ -1,12 +1,12 @@
-local version = "2.1"
+local version = "2.2"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
-    x = 528,
-    y = 67,
-    z = -81
+    x = 96,
+    y = 63,
+    z = -255,
 }
 
 local maxDepth = -60
@@ -186,7 +186,7 @@ local function padLeft(str, length)
 end
 
 local function fixGlobalData()
-    globalData.chunks[6].currentChunkDepth = 65
+    globalData.chunks = {}
     saveGlobalData(globalData)
 end
 
