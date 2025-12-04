@@ -331,6 +331,7 @@ local function testMovement(turnBefore, turnAfter)
     if turnBefore then turnBefore() end
 
     local x1, y1, z1 = stableGPS()
+    print("GPS before move: ", x1, y1, z1)
     if not x1 then
         if turnAfter then turnAfter() end
         return nil
@@ -338,11 +339,12 @@ local function testMovement(turnBefore, turnAfter)
 
     -- Sicher vorwärts bewegen
     while not forward() do
-        avoidTurtleByForward()
+        avoidTurtleByYAxis()
     end
 
     os.sleep(1)
     local x2, y2, z2 = stableGPS()
+    print("GPS after move: ", x2, y2, z2)
     if not x2 then
         if turnAfter then turnAfter() end
         return nil
@@ -351,7 +353,7 @@ local function testMovement(turnBefore, turnAfter)
     -- Zurück-Test
     turnLeft(); turnLeft()
     while not turtle.forward() do
-        avoidTurtleByForward()
+        avoidTurtleByYAxis()
     end
     turnLeft(); turnLeft()
 
