@@ -327,52 +327,41 @@ local function stableGPS()
     end
     return nil
 end
-
--- Führt eine Testbewegung aus und bestimmt die Richtung
-local function testMovement(turnBefore, turnAfter, cx, cz)
-    if turnBefore then
-        turnBefore()
-    end
+local function testMovement(turnBefore, turnAfter)
+    if turnBefore then turnBefore() end
 
     local x1, y1, z1 = stableGPS()
-    print("testMovement: GPS before ->", x1, y1, z1)
     if not x1 then
-        if turnAfter then
-            turnAfter()
-        end
+        if turnAfter then turnAfter() end
         return nil
     end
 
-    if not forward() then
-        if turnAfter then
-            turnAfter()
-        end
-        return nil
+    -- Sicher vorwärts bewegen
+    while not forward() do
+        avoidTurtleByForward()
     end
 
-    os.sleep(1) -- GPS-Sync
+    os.sleep(1)
     local x2, y2, z2 = stableGPS()
-    print("testMovement: GPS after  ->", x2, y2, z2)
-
-    turnLeft()
-    turnLeft()
-    turtle.forward()
-    turnLeft()
-    turnLeft()
-
-    if turnAfter then
-        turnAfter()
-    end
-
     if not x2 then
+        if turnAfter then turnAfter() end
         return nil
     end
+
+    -- Zurück-Test
+    turnLeft(); turnLeft()
+    while not turtle.forward() do
+        avoidTurtleByForward()
+    end
+    turnLeft(); turnLeft()
+
+    if turnAfter then turnAfter() end
 
     local dx = x2 - x1
     local dz = z2 - z1
-
     return detectDirectionFromDelta(dx, dz)
 end
+
 
 -- Bestimmt die Turtle-Richtung sicher
 local function getDirection()
