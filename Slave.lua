@@ -1,4 +1,4 @@
-local version = "1.6"
+local version = "1.7"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
