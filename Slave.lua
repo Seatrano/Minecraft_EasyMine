@@ -303,6 +303,7 @@ local function forward()
 
      while true do
         if isTurtleAhead() then
+            print("Turtle detected ahead, avoiding by Y axis")
             avoidTurtleByYAxis()
 
         elseif turtle.detect() then
@@ -362,6 +363,7 @@ local function testMovement(turnBefore, turnAfter)
 
     -- Sicher vorwärts bewegen
     while not forward() do
+        print("Turtle detected ahead during test movement, avoiding by Y axis")
         avoidTurtleByYAxis()
     end
 
