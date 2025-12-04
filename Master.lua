@@ -185,12 +185,14 @@ local function padLeft(str, length)
     end
 end
 
+
 local function fixGlobalData()
     globalData.chunks = {}
     globalData.turtles = {} 
-    globalData.firstStartPoint.x = firstStartPoint.x
-    globalData.firstStartPoint.y = firstStartPoint.y
-    globalData.firstStartPoint.z = firstStartPoint.z
+    globalData.firstStartPoint.x = 96
+    globalData.firstStartPoint.y = 63
+    globalData.firstStartPoint.z = -255
+
     saveGlobalData(globalData)
 end
 
