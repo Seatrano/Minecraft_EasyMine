@@ -318,14 +318,14 @@ end
 
 -- Liefert stabilere GPS-Werte
 local function stableGPS()
-    for i = 1, 5 do
+    while true do
+        print("Acquiring stable GPS...")
         local x, y, z = gps.locate(1)
         if x and z then
             return x, y, z
         end
-        os.sleep(0.2)
+        os.sleep(1)
     end
-    return nil
 end
 local function testMovement(turnBefore, turnAfter)
     if turnBefore then turnBefore() end
