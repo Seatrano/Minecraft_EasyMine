@@ -279,6 +279,7 @@ local function up()
 
     currentY = currentY + 1
     sendMessage()
+    return true
 end
 
 local function down()
@@ -297,6 +298,7 @@ local function down()
 
     currentY = currentY - 1
     sendMessage()
+    return true
 end
 
 local function forward()
@@ -326,6 +328,7 @@ local function forward()
         currentX = currentX - 1
     end
     sendMessage()
+    return true
 end
 
 -- Richtungscode:
