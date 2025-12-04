@@ -1,4 +1,4 @@
-local version = "1.5"
+local version = "1.6"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -350,7 +350,7 @@ local function testMovement(turnBefore, turnAfter, cx, cz)
         return nil
     end
 
-    os.sleep(0.3) -- GPS-Sync
+    os.sleep(1) -- GPS-Sync
     local x2, y2, z2 = stableGPS()
     print("testMovement: GPS after  ->", x2, y2, z2)
 
