@@ -1,4 +1,4 @@
-local version = "2.5"
+local version = "2.6"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -186,7 +186,8 @@ local function padLeft(str, length)
 end
 
 local function fixGlobalData()
-    
+    globalData.chunks = {}
+    globalData.turtles = {} 
     saveGlobalData(globalData)
 end
 
