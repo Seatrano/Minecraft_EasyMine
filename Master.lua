@@ -280,7 +280,7 @@ while true do
 
     -- Sortieren nach Zahl im Namen
     table.sort(turtlesSorted, function(a, b)
-        return turtleNumber(a.turtleName) < turtleNumber(b.turtleName)
+        return turtleNumber(a.chunkNumber) < turtleNumber(b.chunkNumber)
     end)
 
     mon.clear()
@@ -308,7 +308,7 @@ while true do
         local chunk = padRight(t.chunkNumber or "?", 3)
 
         mon.write(
-            name .. " X:" .. x .. " Y:" .. y .. " Z:" .. z .. " Dir:" .. dirStr .. " Fuel:" .. fuel .. " Chunk:" ..
+            name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel .. " Chunk:" ..
                 chunk .. " Status:" .. status)
 
         row = row + 1
