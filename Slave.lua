@@ -402,7 +402,7 @@ local function getDirection()
         sendMessage()
 
         -- 1) forward
-        local dir = testMovement(nil, nil, currentX, currentZ)
+        local dir = testMovement(nil, nil)
         if dir then
             print("Direction detected: " .. directionToString(dir))
             return dir
@@ -413,7 +413,8 @@ local function getDirection()
             turnLeft()
         end, function()
             turnRight()
-        end, currentX, currentZ)
+        end)
+
         if dir then
             print("Direction detected (left): " .. directionToString(dir))
             return dir
@@ -424,7 +425,8 @@ local function getDirection()
             turnRight()
         end, function()
             turnLeft()
-        end, currentX, currentZ)
+        end)
+
         if dir then
             print("Direction detected (right): " .. directionToString(dir))
             return dir

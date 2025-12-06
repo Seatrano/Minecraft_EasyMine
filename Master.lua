@@ -244,8 +244,7 @@ while true do
             }
 
             local chunk = findChunk(data.turtleName)
-            chunk.workedByTurtleName = data.turtleName
-
+    
             -- Antwort an die Turtle
             rednet.send(id, textutils.serialize(chunk), data.turtleName)
             saveGlobalData(globalData)
