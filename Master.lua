@@ -1,4 +1,4 @@
-local version = "3.9.1"
+local version = "3.9.3"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -148,24 +148,37 @@ local function getOrCreateChunk(n)
 end
 
 local function findChunk(turtleName)
-    -- 1) Suche freien Chunk
+    local now = os.epoch("utc")
+
+    -- 1) Alle Chunks auf Default-Werte prüfen
     for i, chunk in pairs(globalData.chunks) do
         chunk.workedByTurtleName = chunk.workedByTurtleName or nil
         chunk.chunkLastUpdate = chunk.chunkLastUpdate or nil
         chunk.currentChunkDepth = chunk.currentChunkDepth or globalData.startPoint.y
         chunk.chunkCoordinates = chunk.chunkCoordinates or getChunkCoordinates(i)
     end
-    saveGlobalData(globalData)
 
-    -- 2) Keiner frei -> neuen Chunk erzeugen
+    -- 2) Freien Chunk suchen
+    for i, chunk in pairs(globalData.chunks) do
+        if chunk.currentChunkDepth > maxDepth and chunk.workedByTurtleName == nil then
+            chunk.workedByTurtleName = turtleName
+            chunk.chunkLastUpdate = now
+            print("Assigning existing chunk " .. chunk.chunkNumber .. " to turtle " .. turtleName)
+            saveGlobalData(globalData)
+            return chunk
+        end
+    end
+
+    -- 3) Wenn keiner frei -> neuen Chunk erzeugen
     local newIndex = #globalData.chunks + 1
     local chunk = getOrCreateChunk(newIndex)
-
     chunk.workedByTurtleName = turtleName
-    chunk.chunkLastUpdate = os.epoch("utc")
-
+    chunk.chunkLastUpdate = now
+    print("No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
+    saveGlobalData(globalData)
     return chunk
 end
+
 
 local function padRight(str, length)
     str = tostring(str or "?")
