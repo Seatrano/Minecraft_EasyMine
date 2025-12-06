@@ -187,14 +187,24 @@ end
 
 
 local function fixGlobalData()
-    
+    globalData.chunks[2].workedByTurtleName = nil
+    globalData.chunks[1].workedByTurtleName = nil
+    globalData.chunks[1].currentChunkDepth = 250
+    globalData.chunks[1].lastUpdate = nil
+    globalData.chunks[1].chunkCoordinates = {
+        startX = 96,
+        startZ = 64,
+        endX = 112,
+        endZ = 80
+    }
+
     saveGlobalData(globalData)
     print("globalData firstStartpoint x = " .. globalData.firstStartPoint.x ..
               " y = " .. globalData.firstStartPoint.y .. " z = " .. globalData.firstStartPoint.z)
 end
 
 print("Master Computer Version " .. version)
--- fixGlobalData()
+ fixGlobalData()
 
 while true do
     local now = os.epoch("utc")
