@@ -187,7 +187,7 @@ end
 
 
 local function fixGlobalData()
-    -- globalData.chunks[2].workedByTurtleName = nil
+    globalData.chunks[2].workedByTurtleName = "MT1"
     -- globalData.chunks[1].workedByTurtleName = nil
     -- globalData.chunks[1].currentChunkDepth = 250
     -- globalData.chunks[1].lastUpdate = nil
