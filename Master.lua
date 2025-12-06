@@ -224,6 +224,7 @@ while true do
         chunkLastCheck = now
         for _, chunk in ipairs(globalData.chunks) do
             if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > chunkTimeout then
+                print("Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
                 chunk.workedByTurtleName = nil
                 chunk.chunkLastUpdate = nil
             end
