@@ -1,26 +1,31 @@
 local url = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/Master.lua"
 
-local request = http.get(url, {
-    ["User-Agent"] = "CC-HTTP"
-})
+local headers = {
+    ["User-Agent"] = "CC"    -- GitHub API verlangt einen User-Agent!
+}
 
-if request then
-    local data = textutils.unserializeJSON(request.readAll())
-    request.close()
+local response = http.get(url, headers)
 
-    local decoded = textutils.unserializeJSON(
-        '{"content":"' .. data.content .. '","encoding":"base64"}'
-    ).content
+if response then
+    local json = response.readAll()
+    response.close()
 
-    local content = textutils.decode_base64(data.content)
+    local data = textutils.unserializeJSON(json)
+
+    if not data or not data.content then
+        print("Fehler: content nicht gefunden.")
+        return
+    end
+
+    local decoded = textutils.decodeBase64(data.content)
 
     local f = fs.open("Master.lua", "w")
-    f.write(content)
+    f.write(decoded)
     f.close()
 
-    print("Aktualisiert über GitHub API.")
+    print("Master.lua erfolgreich aktualisiert.")
 else
-    print("Fehler beim Laden über API.")
+    print("Fehler: Konnte die Datei nicht laden.")
 end
 
 shell.run("Master.lua")
