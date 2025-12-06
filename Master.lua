@@ -199,8 +199,6 @@ local function fixGlobalData()
     -- }
 
     saveGlobalData(globalData)
-    print("globalData firstStartpoint x = " .. globalData.firstStartPoint.x ..
-              " y = " .. globalData.firstStartPoint.y .. " z = " .. globalData.firstStartPoint.z)
 end
 
 print("Master Computer Version " .. version)
