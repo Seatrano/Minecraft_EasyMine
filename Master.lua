@@ -6,7 +6,7 @@ local turtleLastCheck = os.epoch("utc")
 local firstStartPoint = {
     x = 96,
     z = 64,
-    y = 254,
+    y = 254
 }
 
 local maxDepth = -60
@@ -149,13 +149,13 @@ end
 
 local function findChunk(turtleName)
     -- 1) Suche freien Chunk
-    for _, chunk in pairs(globalData.chunks) do
-        if chunk.currentChunkDepth > maxDepth and chunk.workedByTurtleName == nil then
-            chunk.workedByTurtleName = turtleName
-            chunk.chunkLastUpdate = os.epoch("utc")
-            return chunk
-        end
+    for i, chunk in pairs(globalData.chunks) do
+        chunk.workedByTurtleName = chunk.workedByTurtleName or nil
+        chunk.chunkLastUpdate = chunk.chunkLastUpdate or nil
+        chunk.currentChunkDepth = chunk.currentChunkDepth or globalData.startPoint.y
+        chunk.chunkCoordinates = chunk.chunkCoordinates or getChunkCoordinates(i)
     end
+    saveGlobalData(globalData)
 
     -- 2) Keiner frei -> neuen Chunk erzeugen
     local newIndex = #globalData.chunks + 1
@@ -185,7 +185,6 @@ local function padLeft(str, length)
     end
 end
 
-
 local function fixGlobalData()
     -- globalData.chunks[2].workedByTurtleName = "MT1"
     -- globalData.chunks[1].workedByTurtleName = nil
@@ -202,7 +201,7 @@ local function fixGlobalData()
 end
 
 print("Master Computer Version " .. version)
- fixGlobalData()
+fixGlobalData()
 
 while true do
     local now = os.epoch("utc")
@@ -244,7 +243,7 @@ while true do
             }
 
             local chunk = findChunk(data.turtleName)
-    
+
             -- Antwort an die Turtle
             rednet.send(id, textutils.serialize(chunk), data.turtleName)
             saveGlobalData(globalData)
