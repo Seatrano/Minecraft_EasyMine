@@ -187,7 +187,7 @@ end
 
 
 local function fixGlobalData()
-    globalData.chunks[1] = nil
+    
     saveGlobalData(globalData)
     print("globalData firstStartpoint x = " .. globalData.firstStartPoint.x ..
               " y = " .. globalData.firstStartPoint.y .. " z = " .. globalData.firstStartPoint.z)
