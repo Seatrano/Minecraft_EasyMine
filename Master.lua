@@ -280,7 +280,7 @@ while true do
 
     -- Sortieren nach Zahl im Namen
     table.sort(turtlesSorted, function(a, b)
-        return turtleNumber(a.chunkNumber) < turtleNumber(b.chunkNumber)
+        return a.chunkNumber < b.chunkNumber
     end)
 
     mon.clear()
