@@ -265,7 +265,7 @@ end
 local function up()
     while true do
         if isTurtleUp() then
-            avoidTurtleByYAxis()
+            avoidTurtleByForward()
 
         elseif turtle.detectUp() then
             turtle.digUp()
