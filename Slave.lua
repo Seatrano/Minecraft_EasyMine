@@ -1,4 +1,4 @@
-local version = "2.0"
+local version = "2.1"
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -6,7 +6,8 @@ local trash = {
     ["minecraft:diorite"] = true,
     ["create:limestone_cobblestone"] = true,
     ["minecraft:gravel"] = true,
-    ["minecraft:granite"] = true
+    ["minecraft:granite"] = true,
+    ["minecraft:cobbled_deepslate"] = true
 }
 
 local turtleName = os.getComputerLabel()
