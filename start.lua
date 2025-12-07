@@ -47,11 +47,11 @@ if not selection or selection == "" then
 end
 
 local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/"
-
+local token = "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"
 local headers = {
     ["User-Agent"] = "CC",
     ["Accept"] = "application/vnd.github.v3.raw",
-    ["Authorization"] = "token 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"
+    ["Authorization"] = "token " .. token
 }
 
 local function downloadFile(path)
