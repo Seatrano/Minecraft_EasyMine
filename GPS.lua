@@ -21,20 +21,12 @@ end
 local coordsFile = "gps_coords.txt"
 local coords = nil
 
--- if fs.exists(coordsFile) then
---     local f = fs.open(coordsFile, "r")
---     coords = textutils.unserialize(f.readAll())
---     f.close()
-
---     print("Loaded GPS coordinates: X=" .. coords.x .. " Y=" .. coords.y .. " Z=" .. coords.z)
--- end
-
-local coords = {}
-coords.x = 447
-coords.y = 80
-coords.z = 74
-
-if not coords then
+if fs.exists(coordsFile) then
+    local f = fs.open(coordsFile, "r")
+    coords = textutils.unserialize(f.readAll())
+    f.close()
+    print("Loaded GPS coordinates: X=" .. coords.x .. " Y=" .. coords.y .. " Z=" .. coords.z)
+else
     print("Enter the GPS host position for this computer:")
     coords = {
         x = getNumber("X: "),
@@ -48,4 +40,15 @@ if not coords then
     print("Coordinates saved.")
 end
 
-shell.run("gps", "host", coords.x, coords.y, coords.z)
+-- GPS Server starten (non-blocking, dauerhaft)
+parallel.waitForAny(
+    function()
+        shell.run("gps", "host", coords.x, coords.y, coords.z)
+    end,
+    function()
+        while true do
+            -- Yielding, damit ComputerCraft nicht meckert
+            os.pullEvent("timer") -- wartet auf Timer-Event, gibt CPU frei
+        end
+    end
+)
