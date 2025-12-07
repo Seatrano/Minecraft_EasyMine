@@ -6,7 +6,6 @@ local mon = finder:getMonitor()
 
 mon.clear()
 mon.setCursorPos(1, 1)
-mon.write("Warte auf Daten...")
 
 local PROTOCOL = "Debug"
 
@@ -18,23 +17,23 @@ local logLines = {} -- speichert die Nachrichten
 
 while true do
     local sender, msg, proto = rednet.receive(PROTOCOL)
+    local data = textutils.unserialize(msg)
 
-    if proto == PROTOCOL then
-        local debugMsg = msg.debug or "Waiting for Data..."
+    local debugMsg = data.debug or "Waiting for Data..."
 
-        -- Nachricht in logLines hinzufügen
-        table.insert(logLines, debugMsg)
+    -- Nachricht in logLines hinzufügen
+    table.insert(logLines, debugMsg)
 
-        -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
-        if #logLines > height then
-            table.remove(logLines, 1) -- älteste Zeile entfernen
-        end
-
-        -- Monitor aktualisieren
-        mon.clear()
-        for i, line in ipairs(logLines) do
-            mon.setCursorPos(1, i)
-            mon.write(line)
-        end
+    -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
+    if #logLines > height then
+        table.remove(logLines, 1) -- älteste Zeile entfernen
     end
+
+    -- Monitor aktualisieren
+    mon.clear()
+    for i, line in ipairs(logLines) do
+        mon.setCursorPos(1, i)
+        mon.write(line)
+    end
+
 end
