@@ -274,6 +274,7 @@ local function sendMessageToMonitor()
 
         -- Nachricht von irgendeiner Turtle empfangen
         local id, msg = rednet.receive()
+        print("Received message from ID " .. id)
         if msg then
             print("Received message from ID " .. id .. " with msg: " .. msg)
             local data = textutils.unserialize(msg)
