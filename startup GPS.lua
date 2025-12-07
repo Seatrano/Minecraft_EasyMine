@@ -49,6 +49,6 @@ local function updateHelpers()
     end
 end
 
-downloadFile("GPS.lua")
+downloadFile("GPSMaster.lua")
 updateHelpers()
-shell.run("GPS.lua")
+shell.run("GPSMaster.lua")
