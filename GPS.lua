@@ -29,6 +29,7 @@ local coords = nil
 --     print("Loaded GPS coordinates: X=" .. coords.x .. " Y=" .. coords.y .. " Z=" .. coords.z)
 -- end
 
+local coords = {}
 coords.x = 447
 coords.y = 80
 coords.z = 74
