@@ -379,6 +379,8 @@ local function sendDebugInfo()
     log:logDebug("Master", "Master is running.")
 end
 
+
+sendMessageToMonitor()
 while true do
     parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
     sleep(1)
