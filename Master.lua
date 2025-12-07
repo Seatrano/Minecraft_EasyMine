@@ -273,10 +273,10 @@ local function sendMessageToMonitor()
 
 
         -- Nachricht von irgendeiner Turtle empfangen
-        local id, msg = rednet.receive("MT")
+        local id, msg = rednet.receive("")
         if msg then
             local data = textutils.serialize(msg)
-
+            log:logDebug("Master", "Received message: " .. data)
             if data.type == "newConnection" then
 
                 if not (data.turtleName) then
