@@ -510,7 +510,7 @@ local function connectToMaster()
 
     log:logDebug(turtleName, "Connecting to Master from X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
 
-    rednet.broadcast(textutils.serialize(data), "MT")
+    rednet.broadcast(data, "MT")
     while true do
         local id, msg = rednet.receive(turtleName)
         if msg then
