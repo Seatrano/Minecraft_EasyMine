@@ -339,8 +339,10 @@ local function sendMessageToMonitor()
 end
 
 local function sendDebugInfo()
+    local time = os.epoch("utc")
+
     rednet.broadcast({
-        debug = "System OK"
+        debug = time
     }, "Debug")
 end
 
