@@ -1,8 +1,7 @@
 local DeviceFinder = require("helper.getDevices")
 local finder = DeviceFinder.new()
+finder:openModem()
 
-
-local version = "3.9.3"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
 local chunkLastCheck = os.epoch("utc")
@@ -14,9 +13,9 @@ local firstStartPoint = {
 }
 
 local chestCoordinates = {
-    x = 0,
-    y = 0,
-    z = 0
+    x = 439,
+    y = 80,
+    z = 74
 }
 
 local maxDepth = -60
@@ -45,7 +44,6 @@ local function saveGlobalData(localData)
 end
 
 
-finder:openModem()
 local mon = finder:getMonitor()
 
 mon.clear()
@@ -204,7 +202,6 @@ local function fixGlobalData()
     saveGlobalData(globalData)
 end
 
-print("Master Computer Version " .. version)
 fixGlobalData()
 
 local function sendMessageToMonitor()

@@ -1,0 +1,53 @@
+local DeviceFinder = require("helper.getDevices")
+local finder = DeviceFinder.new()
+
+finder:openModem()
+
+if not os.getComputerLabel() then
+    print("This computer has no label.")
+    write("Enter a label: ")
+    local lbl = read()
+    os.setComputerLabel(lbl)
+    print("Label set to: " .. lbl)
+end
+
+local function getNumber(prompt)
+    write(prompt)
+    return tonumber(read())
+end
+
+
+local coordsFile = "gps_coords.txt"
+local coords = nil
+
+if fs.exists(coordsFile) then
+    local f = fs.open(coordsFile, "r")
+    coords = textutils.unserialize(f.readAll())
+    f.close()
+
+    if coords and coords.x and coords.y and coords.z then
+        print("Loaded saved coordinates:")
+        print("X=" .. coords.x .. "  Y=" .. coords.y .. "  Z=" .. coords.z)
+    else
+        coords = nil
+    end
+end
+
+
+if not coords then
+    print("Enter the GPS host position for this computer:")
+    coords = {
+        x = getNumber("X: "),
+        y = getNumber("Y: "),
+        z = getNumber("Z: ")
+    }
+
+    local f = fs.open(coordsFile, "w")
+    f.write(textutils.serialize(coords))
+    f.close()
+
+    print("Coordinates saved.")
+end
+
+print("Starting GPS host at " .. coords.x .. " " .. coords.y .. " " .. coords.z)
+gps.host(coords.x, coords.y, coords.z)
