@@ -1,26 +1,8 @@
-local sides = {"top", "bottom", "left", "right", "front", "back"}
-local modemSide = nil
-for _, side in ipairs(sides) do
-    if peripheral.getType(side) == "modem" then
-        modemSide = side
-        break
-    end
-end
+local DeviceFinder = require("DeviceFinder")
+local finder = DeviceFinder.new()
 
-if modemSide then
-    rednet.open(modemSide)
-end
-
-local monitorSide = nil
-for _, side in ipairs(sides) do
-    if peripheral.getType(side) == "monitor" then
-        monitorSide = side
-        break
-    end
-end
-
-local mon = peripheral.wrap(monitorSide)
-local w, h = mon.getSize()
+finder:openModem()
+local mon = finder:getMonitor()
 
 mon.clear()
 mon.setCursorPos(1, 1)
