@@ -214,6 +214,7 @@ local function findChunk(turtleName)
         log:logDebug("Master", "Checking chunk " .. chunk.chunkNumber .. " workedByTurtleName=" ..
                               tostring(chunk.workedByTurtleName) .. " currentChunkDepth=" .. tostring(
             chunk.currentChunkDepth))
+            log:logDebug("Master", "Max depth is " .. tostring(globalData.maxDepth))
         if chunk.currentChunkDepth > globalData.maxDepth and chunk.workedByTurtleName == nil then
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
