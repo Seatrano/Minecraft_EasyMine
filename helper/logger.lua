@@ -1,8 +1,6 @@
 local logger = {}
 logger.__index = logger
 
-
-
 function logger.new()
     return setmetatable({}, logger)
 end
