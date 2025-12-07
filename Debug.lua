@@ -17,8 +17,7 @@ local logLines = {} -- speichert die Nachrichten
 
 while true do
     local sender, msg, proto = rednet.receive(PROTOCOL)
-    print("Received debug message from " .. sender .. " with protocol " .. (proto or "nil") .. " with msg and: " ..
-              (msg.debug or "nil"))
+    
     
     table.insert(logLines, textutils.serialize(msg.debug))
 
