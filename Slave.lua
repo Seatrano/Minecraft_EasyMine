@@ -511,7 +511,7 @@ local function connectToMaster()
 
     rednet.broadcast(textutils.serialize(data), "MT")
     while true do
-        local id, msg = rednet.receive(turtleName)
+        local id, msg = rednet.receive("4711")
         if msg then
 
             if not os.getComputerLabel() then
@@ -520,7 +520,7 @@ local function connectToMaster()
             end
 
             chunkNumber = msg.chunkNumber
-            print("Going to chunk " .. chunkNumber)
+            print("Going to chunk " .. msg.chunkNumber)
 
             startCoords.x = msg.chunkCoordinates.startX
             startCoords.z = msg.chunkCoordinates.startZ
