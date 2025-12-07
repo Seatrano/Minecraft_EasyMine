@@ -29,6 +29,10 @@ local coords = nil
 --     print("Loaded GPS coordinates: X=" .. coords.x .. " Y=" .. coords.y .. " Z=" .. coords.z)
 -- end
 
+coords.x = 447
+coords.y = 80
+coords.z = 74
+
 if not coords then
     print("Enter the GPS host position for this computer:")
     coords = {
