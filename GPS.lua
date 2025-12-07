@@ -49,5 +49,5 @@ if not coords then
 end
 
 print("Starting GPS host at " .. coords.x .. " " .. coords.y .. " " .. coords.z)
-os.sleep(0) -- kurzes Yield, verhindert "too long without yielding"
-gps.host(coords.x, coords.y, coords.z)
+os.sleep(0)  -- kleines Yield, verhindert "too long without yielding"
+shell.run("gps", "host", coords.x, coords.y, coords.z)
