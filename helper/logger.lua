@@ -10,7 +10,7 @@ function logger:logDebug(source, message)
         source = source,
         debug = message
     }
-    rednet.broadcast(data, "Debug")
+    rednet.broadcast(textutils.serialize(data), "Debug")
 end
 
 return logger

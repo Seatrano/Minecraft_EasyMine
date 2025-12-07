@@ -9,21 +9,24 @@ mon.setCursorPos(1, 1)
 
 print("Debug Computer running...")
 
--- Monitorgröße ermitteln
 local width, height = mon.getSize()
-local logLines = {} -- speichert die Nachrichten
+local logLines = {}
 
 while true do
-    local id, message = rednet.receive("Debug")
-    
-    print("Received message from ID: " .. id .. with .. message.debug)
-    print("Message content: " .. textutils.serialize(message))
+    local id, messageStr = rednet.receive("Debug")
 
-    table.insert(logLines, textutils.serialize(id) .. " " .. textutils.serialize(message.debug))
+    -- Nachricht deserialisieren
+    local success, message = pcall(textutils.unserialize, messageStr)
+    if not success then
+        message = {source="unknown", debug=messageStr}
+    end
 
-    -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
+    local debugMsg = (message.source or "?") .. ": " .. (message.debug or "?")
+    table.insert(logLines, debugMsg)
+
+    -- Nur Monitorhöhe anzeigen
     if #logLines > height then
-        table.remove(logLines, 1) -- älteste Zeile entfernen
+        table.remove(logLines, 1)
     end
 
     -- Monitor aktualisieren
@@ -32,5 +35,4 @@ while true do
         mon.setCursorPos(1, i)
         mon.write(line)
     end
-
 end
