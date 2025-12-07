@@ -4,7 +4,6 @@ local logger = require("helper.logger")
 local log = logger.new()
 finder:openModem()
 
-
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -505,16 +504,16 @@ local function connectToMaster()
             y = currentY,
             z = currentZ
         },
-        direction = direction,
+        direction = direction
     }
 
     log:logDebug(turtleName, "Connecting to Master from X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
 
-    rednet.broadcast(data, "MT")
+    rednet.broadcast(textutils.serialize(data), "MT")
     while true do
         local id, msg = rednet.receive(turtleName)
         if msg then
-        
+
             if not os.getComputerLabel() then
                 os.setComputerLabel(msg.turtleName)
                 turtleName = msg.turtleName
@@ -659,7 +658,6 @@ while true do
     print("GPS fehlt – warte bis die Welt komplett geladen ist...")
     sleep(1)
 end
-
 
 direction = getDirection()
 if currentX and currentY and currentZ and direction then

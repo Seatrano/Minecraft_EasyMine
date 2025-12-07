@@ -271,11 +271,10 @@ local function sendMessageToMonitor()
             end
         end
 
-
         -- Nachricht von irgendeiner Turtle empfangen
-        local id, msg = rednet.receive("")
+        local id, msg = rednet.receive()
         if msg then
-            local data = textutils.serialize(msg)
+            local data = textutils.unserialize(msg)
             log:logDebug("Master", "Received message: " .. data)
             if data.type == "newConnection" then
 
@@ -292,9 +291,10 @@ local function sendMessageToMonitor()
 
                 local data = findChunk(data.turtleName)
                 data.chestCoordinates = chestCoordinates
-                
+
                 -- Antwort an die Turtle
-                print("Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" .. data.chunkCoordinates.startZ)
+                print("Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
+                          data.chunkCoordinates.startZ)
                 log:logDebug("testsource", "testmessage")
                 rednet.send(id, textutils.serialize(data))
                 saveGlobalData(globalData)
