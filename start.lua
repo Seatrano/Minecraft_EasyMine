@@ -92,23 +92,28 @@ end
 
 local function updateHelpers()
     local url = apiBase .. "helper"
-    local response = http.get(url, headers)
-    print(response.readAll())
+    local response, err = http.get(url, headers)
 
     if not response then
         print("ERROR: could not list helper folder")
+        print("Reason: " .. (err or "unknown"))
         return
     end
 
-    local files = textutils.unserializeJSON(response.readAll())
+    local body = response.readAll()
     response.close()
 
+    print("API Response:")
+    print(body)
+
+    local files = textutils.unserializeJSON(body)
     for _, file in ipairs(files) do
         if file.type == "file" then
             downloadFile("helper/" .. file.name)
         end
     end
 end
+
 
 -- Programme laden und starten
 if selection == "GPSHost" then
