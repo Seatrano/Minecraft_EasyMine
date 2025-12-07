@@ -1,5 +1,3 @@
--- startup.lua
-
 local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/"
 
 local headers = {
