@@ -211,6 +211,9 @@ local function findChunk(turtleName)
 
     -- Freien Chunk suchen
     for i, chunk in ipairs(globalData.chunks) do
+        log:logDebug("Master", "Checking chunk " .. chunk.chunkNumber .. " workedByTurtleName=" ..
+                              tostring(chunk.workedByTurtleName) .. " currentChunkDepth=" .. tostring(
+            chunk.currentChunkDepth))
         if chunk.currentChunkDepth > globalData.maxDepth and chunk.workedByTurtleName == nil then
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
