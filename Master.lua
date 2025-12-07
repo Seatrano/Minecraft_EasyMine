@@ -275,7 +275,7 @@ local function sendMessageToMonitor()
         local id, msg = rednet.receive()
         if msg then
             local data = textutils.unserialize(msg)
-            log:logDebug("Master", "Received message: " .. data)
+            log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
             if data.type == "newConnection" then
 
                 if not (data.turtleName) then
