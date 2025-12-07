@@ -50,7 +50,8 @@ local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/conten
 
 local headers = {
     ["User-Agent"] = "CC",
-    ["Accept"] = "application/vnd.github.v3.raw"
+    ["Accept"] = "application/vnd.github.v3.raw",
+    ["Authorization"] = "token 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"
 }
 
 local function downloadFile(path)
