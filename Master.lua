@@ -377,7 +377,7 @@ end
 
 local function sendDebugInfo()
     rednet.broadcast({
-        debug = textutils.serialize(globalData)
+        debug = "TEST"
     }, "Debug")
 end
 
