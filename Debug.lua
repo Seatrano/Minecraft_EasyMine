@@ -19,7 +19,7 @@ while true do
     local sender, msg, proto = rednet.receive(PROTOCOL)
     
     
-    table.insert(logLines, textutils.serialize(sender) .. " " .. textutils.serialize(msg.debug))
+    table.insert(logLines, textutils.serialize(msg.source) .. " " .. textutils.serialize(msg.debug))
 
     -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
     if #logLines > height then
