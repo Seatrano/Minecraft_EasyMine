@@ -16,10 +16,10 @@ local logLines = {} -- speichert die Nachrichten
 while true do
     local id, message = rednet.receive("Debug")
     
-    print("Received message from ID: " .. id .. with .. message)
+    print("Received message from ID: " .. id .. with .. message.debug)
     print("Message content: " .. textutils.serialize(message))
 
-    table.insert(logLines, textutils.serialize(sender) .. " " .. textutils.serialize(msg.debug))
+    table.insert(logLines, textutils.serialize(id) .. " " .. textutils.serialize(message.debug))
 
     -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
     if #logLines > height then
