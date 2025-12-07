@@ -46,8 +46,8 @@ if not selection or selection == "" then
     print("Saved as: " .. selection)
 end
 
-local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/"
 local token = "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"
+local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/"
 local headers = {
     ["User-Agent"] = "CC",
     ["Accept"] = "application/vnd.github.v3.raw",
@@ -90,10 +90,10 @@ local function downloadFile(path)
     print("Updated: " .. path)
 end
 
-
 local function updateHelpers()
     local url = apiBase .. "helper"
-    local response = http.get(url, headers) 
+    local response = http.get(url, headers)
+    print(response.readAll())
 
     if not response then
         print("ERROR: could not list helper folder")
@@ -109,7 +109,6 @@ local function updateHelpers()
         end
     end
 end
-
 
 -- Programme laden und starten
 if selection == "GPSHost" then
