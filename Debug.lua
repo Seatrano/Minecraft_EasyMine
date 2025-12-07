@@ -1,4 +1,4 @@
-local DeviceFinder = require("helper.DeviceFinder")
+local DeviceFinder = require("helper.getDevices")
 local finder = DeviceFinder.new()
 
 finder:openModem()

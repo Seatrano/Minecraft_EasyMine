@@ -1,4 +1,6 @@
-local DeviceFinder = require("helper.DeviceFinder")
+local DeviceFinder = require("helper.getDevices")
+local finder = DeviceFinder.new()
+
 
 local version = "3.9.3"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
@@ -42,7 +44,6 @@ local function saveGlobalData(localData)
     file.close()
 end
 
-local finder = DeviceFinder.new()
 
 finder:openModem()
 local mon = finder:getMonitor()
