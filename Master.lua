@@ -216,122 +216,132 @@ end
 print("Master Computer Version " .. version)
 fixGlobalData()
 
-while true do
-    local now = os.epoch("utc")
+local function sendMessageToMonitor()
 
-    -- 1. Prüfe Chunks auf Timeout
-    if now - chunkLastCheck >= chunkTimeout then
-        chunkLastCheck = now
-        for _, chunk in ipairs(globalData.chunks) do
-            if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > chunkTimeout then
-                print("Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
-                chunk.workedByTurtleName = nil
-                chunk.chunkLastUpdate = nil
+    while true do
+        local now = os.epoch("utc")
+
+        -- 1. Prüfe Chunks auf Timeout
+        if now - chunkLastCheck >= chunkTimeout then
+            chunkLastCheck = now
+            for _, chunk in ipairs(globalData.chunks) do
+                if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > chunkTimeout then
+                    print("Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
+                    chunk.workedByTurtleName = nil
+                    chunk.chunkLastUpdate = nil
+                end
             end
         end
-    end
 
-    -- 2. Prüfe Turtles auf Timeout
-    if now - turtleLastCheck >= turtleTimeout then
-        turtleLastCheck = now
-        for name, t in pairs(globalData.turtles) do
-            local last = t.lastUpdate or 0
-            if now - last > turtleTimeout then
-                globalData.turtles[name].status = "offline"
+        -- 2. Prüfe Turtles auf Timeout
+        if now - turtleLastCheck >= turtleTimeout then
+            turtleLastCheck = now
+            for name, t in pairs(globalData.turtles) do
+                local last = t.lastUpdate or 0
+                if now - last > turtleTimeout then
+                    globalData.turtles[name].status = "offline"
+                    saveGlobalData(globalData)
+                end
+            end
+        end
+
+        -- Nachricht von irgendeiner Turtle empfangen
+        local id, msg = rednet.receive("MT")
+        if msg then
+            local data = textutils.unserialize(msg)
+
+            if data.type == "newConnection" then
+                globalData.turtles[data.turtleName] = {
+                    turtleName = data.turtleName,
+                    coordinates = data.coordinates,
+                    direction = data.direction,
+                    lastUpdate = now
+                }
+
+                local chunk = findChunk(data.turtleName)
+
+                -- Antwort an die Turtle
+                rednet.send(id, textutils.serialize(chunk), data.turtleName)
+                saveGlobalData(globalData)
+            end
+
+            if data.type == "updateLayer" then
+                local chunkNumber = data.chunkNumber
+                globalData.chunks[chunkNumber].currentChunkDepth = data.height
+                saveGlobalData(globalData)
+            end
+
+            if data.type == "update" then
+                globalData.turtles[data.turtleName] = {
+                    turtleName = data.turtleName,
+                    coordinates = data.coordinates,
+                    direction = data.direction,
+                    fuelLevel = data.fuelLevel,
+                    status = data.status,
+                    chunkNumber = data.chunkNumber,
+                    lastUpdate = now
+                }
+                if globalData.chunks[data.chunkNumber] then
+                    globalData.chunks[data.chunkNumber].workedByTurtleName = data.turtleName
+                    globalData.chunks[data.chunkNumber].chunkLastUpdate = os.epoch("utc")
+                end
                 saveGlobalData(globalData)
             end
         end
-    end
 
-    -- Nachricht von irgendeiner Turtle empfangen
-    local id, msg = rednet.receive("MT")
-    if msg then
-        local data = textutils.unserialize(msg)
-
-        if data.type == "newConnection" then
-            globalData.turtles[data.turtleName] = {
-                turtleName = data.turtleName,
-                coordinates = data.coordinates,
-                direction = data.direction,
-                lastUpdate = now
-            }
-
-            local chunk = findChunk(data.turtleName)
-
-            -- Antwort an die Turtle
-            rednet.send(id, textutils.serialize(chunk), data.turtleName)
-            saveGlobalData(globalData)
+        -- Hilfsfunktion: Zahl aus Turtle-Name extrahieren
+        local function turtleNumber(name)
+            return tonumber(name:match("%d+")) or 0
         end
 
-        if data.type == "updateLayer" then
-            local chunkNumber = data.chunkNumber
-            globalData.chunks[chunkNumber].currentChunkDepth = data.height
-            saveGlobalData(globalData)
+        -- Turtles als Array sammeln
+        local turtlesSorted = {}
+        for _, t in pairs(globalData.turtles) do
+            table.insert(turtlesSorted, t)
         end
 
-        if data.type == "update" then
-            globalData.turtles[data.turtleName] = {
-                turtleName = data.turtleName,
-                coordinates = data.coordinates,
-                direction = data.direction,
-                fuelLevel = data.fuelLevel,
-                status = data.status,
-                chunkNumber = data.chunkNumber,
-                lastUpdate = now
-            }
-            if globalData.chunks[data.chunkNumber] then
-                globalData.chunks[data.chunkNumber].workedByTurtleName = data.turtleName
-                globalData.chunks[data.chunkNumber].chunkLastUpdate = os.epoch("utc")
+        -- Sortieren nach Zahl im Namen
+        table.sort(turtlesSorted, function(a, b)
+            return turtleNumber(a.turtleName) < turtleNumber(b.turtleName)
+        end)
+
+        mon.clear()
+        local row = 1
+        for _, t in ipairs(turtlesSorted) do
+            if row > h then
+                break
             end
-            saveGlobalData(globalData)
-        end
-    end
 
-    -- Hilfsfunktion: Zahl aus Turtle-Name extrahieren
-    local function turtleNumber(name)
-        return tonumber(name:match("%d+")) or 0
-    end
+            mon.setCursorPos(1, row)
 
-    -- Turtles als Array sammeln
-    local turtlesSorted = {}
-    for _, t in pairs(globalData.turtles) do
-        table.insert(turtlesSorted, t)
-    end
+            if (t.status == "offline") then
+                mon.setTextColour(colors.red)
+            else
+                mon.setTextColour(colors.white)
+            end
 
-    -- Sortieren nach Zahl im Namen
-    table.sort(turtlesSorted, function(a, b)
-        return turtleNumber(a.turtleName) < turtleNumber(b.turtleName)
-    end)
+            local name = padLeft(t.turtleName, 4)
+            local x = padRight(t.coordinates and t.coordinates.x or "?", 4)
+            local y = padRight(t.coordinates and t.coordinates.y or "?", 4)
+            local z = padRight(t.coordinates and t.coordinates.z or "?", 4)
+            local dirStr = padLeft(directionToString(t.direction), 6)
+            local fuel = padRight(t.fuelLevel or "?", 5)
+            local status = padLeft(t.status or "?", 10)
+            local chunk = padRight(t.chunkNumber or "?", 3)
 
-    mon.clear()
-    local row = 1
-    for _, t in ipairs(turtlesSorted) do
-        if row > h then
-            break
+            mon.write(name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel ..
+                          " Chunk:" .. chunk .. " Status:" .. status)
+
+            row = row + 1
         end
 
-        mon.setCursorPos(1, row)
-
-        if (t.status == "offline") then
-            mon.setTextColour(colors.red)
-        else
-            mon.setTextColour(colors.white)
-        end
-
-        local name = padLeft(t.turtleName, 4)
-        local x = padRight(t.coordinates and t.coordinates.x or "?", 4)
-        local y = padRight(t.coordinates and t.coordinates.y or "?", 4)
-        local z = padRight(t.coordinates and t.coordinates.z or "?", 4)
-        local dirStr = padLeft(directionToString(t.direction), 6)
-        local fuel = padRight(t.fuelLevel or "?", 5)
-        local status = padLeft(t.status or "?", 10)
-        local chunk = padRight(t.chunkNumber or "?", 3)
-
-        mon.write(
-            name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel .. " Chunk:" ..
-                chunk .. " Status:" .. status)
-
-        row = row + 1
     end
-
 end
+
+local function sendDebugInfo()
+    rednet.broadcast({
+        debug = "System OK"
+    }, "Debug")
+end
+
+parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
