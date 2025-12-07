@@ -308,7 +308,7 @@ local function sendMessageToMonitor()
                 saveGlobalData(globalData)
             end
 
-            if data.type == "update" then
+            if data.type == "update" and data.turtleName then
                 globalData.turtles[data.turtleName] = {
                     turtleName = data.turtleName,
                     coordinates = data.coordinates,
