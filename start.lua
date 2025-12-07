@@ -48,8 +48,9 @@ end
 
 local tokenFile = "/config/github_token.txt"
 local f = fs.open(tokenFile, "r")
-local token = f.readAll()
+local token = f.readAll():gsub("%s+", "")
 f.close()
+
 
 local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/"
 local headers = {
