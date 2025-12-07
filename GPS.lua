@@ -1,8 +1,8 @@
 local DeviceFinder = require("helper.getDevices")
 local finder = DeviceFinder.new()
-
 finder:openModem()
 
+-- Label prüfen
 if not os.getComputerLabel() then
     print("This computer has no label.")
     write("Enter a label: ")
@@ -11,12 +11,13 @@ if not os.getComputerLabel() then
     print("Label set to: " .. lbl)
 end
 
+-- Funktion zum Einlesen von Zahlen
 local function getNumber(prompt)
     write(prompt)
     return tonumber(read())
 end
 
-
+-- Koordinaten laden oder abfragen
 local coordsFile = "gps_coords.txt"
 local coords = nil
 
@@ -33,7 +34,6 @@ if fs.exists(coordsFile) then
     end
 end
 
-
 if not coords then
     print("Enter the GPS host position for this computer:")
     coords = {
@@ -45,9 +45,9 @@ if not coords then
     local f = fs.open(coordsFile, "w")
     f.write(textutils.serialize(coords))
     f.close()
-
     print("Coordinates saved.")
 end
 
 print("Starting GPS host at " .. coords.x .. " " .. coords.y .. " " .. coords.z)
-shell.run("gps", "host", coords.x, coords.y, coords.z)
+os.sleep(0) -- kurzes Yield, verhindert "too long without yielding"
+gps.host(coords.x, coords.y, coords.z)
