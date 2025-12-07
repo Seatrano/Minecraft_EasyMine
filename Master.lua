@@ -29,7 +29,7 @@ local defaultConfig = {
     }
 }
 
-local w, h = mon.getSize()
+
 
 -- Ordner sicherstellen
 if not fs.exists("/config") then
@@ -104,6 +104,7 @@ local function saveGlobalData(localData)
 end
 
 local mon = finder:getMonitor()
+local w, h = mon.getSize()
 
 mon.clear()
 mon.setCursorPos(1, 1)
