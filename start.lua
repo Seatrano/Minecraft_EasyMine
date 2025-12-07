@@ -59,7 +59,18 @@ local function downloadFile(path)
     local response = http.get(url, headers)
 
     if not response then
+        print("ERROR: Could not connect to " .. url)
+        return
+    end
+
+    if response.getResponseCode and response.getResponseCode() ~= 200 then
         print("ERROR downloading " .. path)
+        print("HTTP Status Code: " .. response.getResponseCode())
+        local body = response.readAll()
+        if body then
+            print("Response body: " .. body)
+        end
+        response.close()
         return
     end
 
@@ -78,6 +89,7 @@ local function downloadFile(path)
 
     print("Updated: " .. path)
 end
+
 
 local function updateHelpers()
     local url = apiBase .. "helper"
