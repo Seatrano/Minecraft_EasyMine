@@ -11,8 +11,21 @@ if modemSide then
     rednet.open(modemSide)
 end
 
-mon.setTextScale(1)
+local monitorSide = nil
+for _, side in ipairs(sides) do
+    if peripheral.getType(side) == "monitor" then
+        monitorSide = side
+        break
+    end
+end
+
+local mon = peripheral.wrap(monitorSide)
+local w, h = mon.getSize()
+
 mon.clear()
+mon.setCursorPos(1, 1)
+mon.write("Warte auf Daten...")
+
 
 local PROTOCOL = "Debug"
 
