@@ -52,7 +52,7 @@ if not fs.exists(configPath) then
     local turtleTimeout = getNumber("Enter turtle timeout in seconds (default 5): ") or 5
     defaultConfig.chunkTimeout = chunkTimeout * 1000
     defaultConfig.turtleTimeout = turtleTimeout * 1000
-    
+
     defaultConfig.firstStartPoint = coords
     defaultConfig.chestCoordinates = chestCoords
 
@@ -63,8 +63,11 @@ if not fs.exists(configPath) then
     print("Created: " .. configPath)
 end
 
--- Jetzt laden
-local config = require(configPath)
+-- Config laden
+local configFile = fs.open(configPath, "r")
+local configContent = configFile.readAll()
+configFile.close()
+local config = textutils.unserialize(configContent)
 
 -- Werte verwenden
 local chunkTimeout = config.chunkTimeout
