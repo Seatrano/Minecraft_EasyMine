@@ -17,9 +17,8 @@ local logLines = {} -- speichert die Nachrichten
 
 while true do
     local sender, msg, proto = rednet.receive(PROTOCOL)
-    local data = textutils.unserialize(msg)
 
-    local debugMsg = data.debug or "Waiting for Data..."
+    local debugMsg = msg or "Waiting for Data..."
 
     -- Nachricht in logLines hinzufügen
     table.insert(logLines, debugMsg)
