@@ -43,14 +43,13 @@ if not coords then
     print("Coordinates saved.")
 end
 
-parallel.waitForAny(
-    function()
-        shell.run("gps", "host", coords.x, coords.y, coords.z)
-    end,
-    function()
-        while true do
-            os.pullEvent()
-            os.sleep(0)
-        end
+parallel.waitForAny(function()
+    shell.run("gps", "host", coords.x, coords.y, coords.z)
+    os.pullEvent("timer")
+end, function()
+    while true do
+        os.pullEvent()
+        os.pullEvent("timer")
+        os.sleep(1)
     end
-)
+end)
