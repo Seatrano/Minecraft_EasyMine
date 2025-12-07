@@ -51,7 +51,7 @@ local token = "github_pat_11A5VBE3I0pYqdRw6CNaMo_vzkTybdyvyONkuuK6dK7ox7qJ1XDVJ4
 local headers = {
     ["User-Agent"] = "CC",
     ["Accept"] = "application/vnd.github.v3.raw",
-    ["Authorization"] = "Bearer " .. token
+    ["Authorization"] = "token " .. token
 }
 
 local function downloadFile(path)
@@ -93,9 +93,7 @@ end
 
 local function updateHelpers()
     local url = apiBase .. "helper"
-    local response = http.get(url, {
-        ["User-Agent"] = "CC"
-    })
+    local response = http.get(url, headers) 
 
     if not response then
         print("ERROR: could not list helper folder")
@@ -111,6 +109,7 @@ local function updateHelpers()
         end
     end
 end
+
 
 -- Programme laden und starten
 if selection == "GPSHost" then
