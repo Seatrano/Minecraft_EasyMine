@@ -514,26 +514,23 @@ local function connectToMaster()
     while true do
         local id, msg = rednet.receive(turtleName)
         if msg then
-            local parsed = textutils.unserialize(msg)
-            print("Received message with msg:" .. msg)
-
+        
             if not os.getComputerLabel() then
-                os.setComputerLabel(parsed.turtleName)
-                turtleName = parsed.turtleName
+                os.setComputerLabel(msg.turtleName)
+                turtleName = msg.turtleName
             end
 
-            chunkNumber = parsed.chunkNumber
+            chunkNumber = msg.chunkNumber
             print("Going to chunk " .. chunkNumber)
 
-            startCoords.x = parsed.chunkCoordinates.startX
-            startCoords.z = parsed.chunkCoordinates.startZ
-            startCoords.y = parsed.currentChunkDepth
-            startCoords.direction = parsed.startDirection or 2
+            startCoords.x = msg.chunkCoordinates.startX
+            startCoords.z = msg.chunkCoordinates.startZ
+            startCoords.y = msg.currentChunkDepth
+            startCoords.direction = msg.startDirection or 2
 
-            chestCoords.x = parsed.chestCoordinates.x
-            chestCoords.y = parsed.chestCoordinates.y
-            chestCoords.z = parsed.chestCoordinates.z
-
+            chestCoords.x = msg.chestCoordinates.x
+            chestCoords.y = msg.chestCoordinates.y
+            chestCoords.z = msg.chestCoordinates.z
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
             break
         end
