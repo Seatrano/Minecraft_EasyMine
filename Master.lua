@@ -381,6 +381,6 @@ end
 
 
 while true do
-    parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
+    parallel.waitForAll(sendMessageToMonitor, sendDebugInfo)
     sleep(1)
 end
