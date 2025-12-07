@@ -50,5 +50,6 @@ local function updateHelpers()
 end
 
 downloadFile("GPS.lua")
+downloadFile("GPSWrapper.lua")
 updateHelpers()
 shell.run("GPS.lua")
