@@ -27,14 +27,13 @@ if not selection or selection == "" then
     local choice = read()
 
     if choice == "1" then
-        selection = "GPSMaster"
+        selection = "GPSHost"
     elseif choice == "2" then
         selection = "Master"
     elseif choice == "3" then
         selection = "Slave"
-    elseif choice == "Debug" then
-        write("Enter custom program ID/name: ")
-        selection = read()
+    elseif choice == "4" then
+        selection = "Debug"
     else
         error("Invalid selection.")
     end
@@ -101,10 +100,10 @@ local function updateHelpers()
 end
 
 -- Programme laden und starten
-if selection == "GPSMaster" then
-    downloadFile("GPSMaster.lua")
+if selection == "GPSHost" then
+    downloadFile("GPSHost.lua")
     updateHelpers()
-    shell.run("GPSMaster.lua")
+    shell.run("GPSHost.lua")
 
 elseif selection == "Master" then
     downloadFile("Master.lua")

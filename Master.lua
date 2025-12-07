@@ -1,24 +1,79 @@
 local DeviceFinder = require("helper.getDevices")
+local monitorFunctions = require("helper.monitorFunctions")
 local finder = DeviceFinder.new()
 finder:openModem()
 
-local chunkTimeout = 30 * 1000 -- 30 Sekunden
-local turtleTimeout = 5 * 1000 -- 5 Sekunden
+local function getNumber(prompt)
+    write(prompt)
+    return tonumber(read())
+end
+
+local configPath = "/config/config.lua"
+
+local defaultConfig = {
+    chunkTimeout = 30 * 1000,
+    turtleTimeout = 5 * 1000,
+
+    firstStartPoint = {
+        x = 0,
+        y = 0,
+        z = 0
+    },
+
+    chestCoordinates = {
+        x = 0,
+        y = 0,
+        z = 0
+    }
+}
+
+-- Ordner sicherstellen
+if not fs.exists("/config") then
+    fs.makeDir("/config")
+end
+
+-- Config erzeugen, wenn nicht vorhanden
+if not fs.exists(configPath) then
+    print("Enter the start Coordinates of the chunk generation:")
+    local coords = {
+        x = getNumber("X: "),
+        y = getNumber("Y: "),
+        z = getNumber("Z: ")
+    }
+
+    print("Enter the chest Coordinates for the turtles:")
+    local chestCoords = {
+        x = getNumber("X: "),
+        y = getNumber("Y: "),
+        z = getNumber("Z: ")
+    }
+
+    local chunkTimeout = getNumber("Enter chunk timeout in seconds (default 30): ") or 30
+    local turtleTimeout = getNumber("Enter turtle timeout in seconds (default 5): ") or 5
+    defaultConfig.chunkTimeout = chunkTimeout * 1000
+    defaultConfig.turtleTimeout = turtleTimeout * 1000
+    
+    defaultConfig.firstStartPoint = coords
+    defaultConfig.chestCoordinates = chestCoords
+
+    local f = fs.open(configPath, "w")
+    f.write(textutils.serialize(defaultConfig))
+    f.close()
+
+    print("Created: " .. configPath)
+end
+
+-- Jetzt laden
+local config = require(configPath)
+
+-- Werte verwenden
+local chunkTimeout = config.chunkTimeout
+local turtleTimeout = config.turtleTimeout
+local firstStartPoint = config.firstStartPoint
+local chestCoordinates = config.chestCoordinates
+
 local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
-local firstStartPoint = {
-    x = 96,
-    z = 64,
-    y = 254
-}
-
-local chestCoordinates = {
-    x = 439,
-    y = 80,
-    z = 74
-}
-
-local maxDepth = -60
 
 local function loadGlobalData()
     if fs.exists("globalData.txt") then
@@ -43,13 +98,11 @@ local function saveGlobalData(localData)
     file.close()
 end
 
-
 local mon = finder:getMonitor()
 
 mon.clear()
 mon.setCursorPos(1, 1)
 mon.write("Warte auf Daten...")
-
 
 -- Gibt die Koordinaten des Chunks x zurück
 local function getChunkCoordinates(chunkNumber)
@@ -167,24 +220,6 @@ local function findChunk(turtleName)
     print("No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
     saveGlobalData(globalData)
     return chunk
-end
-
-local function padRight(str, length)
-    str = tostring(str or "?")
-    if #str < length then
-        return string.rep(" ", length - #str) .. str
-    else
-        return str
-    end
-end
-
-local function padLeft(str, length)
-    str = tostring(str or "?")
-    if #str < length then
-        return str .. string.rep(" ", length - #str)
-    else
-        return str
-    end
 end
 
 local function fixGlobalData()
@@ -309,14 +344,14 @@ local function sendMessageToMonitor()
                 mon.setTextColour(colors.white)
             end
 
-            local name = padLeft(t.turtleName, 4)
-            local x = padRight(t.coordinates and t.coordinates.x or "?", 4)
-            local y = padRight(t.coordinates and t.coordinates.y or "?", 4)
-            local z = padRight(t.coordinates and t.coordinates.z or "?", 4)
-            local dirStr = padLeft(directionToString(t.direction), 6)
-            local fuel = padRight(t.fuelLevel or "?", 5)
-            local status = padLeft(t.status or "?", 10)
-            local chunk = padRight(t.chunkNumber or "?", 3)
+            local name = monitorFunctions.padLeft(t.turtleName, 4)
+            local x = monitorFunctions.padRight(t.coordinates and t.coordinates.x or "?", 4)
+            local y = monitorFunctions.padRight(t.coordinates and t.coordinates.y or "?", 4)
+            local z = monitorFunctions.padRight(t.coordinates and t.coordinates.z or "?", 4)
+            local dirStr = monitorFunctions.padLeft(directionToString(t.direction), 6)
+            local fuel = monitorFunctions.padRight(t.fuelLevel or "?", 5)
+            local status = monitorFunctions.padLeft(t.status or "?", 10)
+            local chunk = monitorFunctions.padRight(t.chunkNumber or "?", 3)
 
             mon.write(name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel ..
                           " Chunk:" .. chunk .. " Status:" .. status)
