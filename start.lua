@@ -46,7 +46,11 @@ if not selection or selection == "" then
     print("Saved as: " .. selection)
 end
 
-local token = "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"
+local tokenFile = "/config/github_token.txt"
+local f = fs.open(tokenFile, "r")
+local token = f.readAll()
+f.close()
+
 local apiBase = "https://api.github.com/repos/Seatrano/Minecraft_EasyMine/contents/"
 local headers = {
     ["User-Agent"] = "CC",
