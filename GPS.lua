@@ -25,13 +25,6 @@ if fs.exists(coordsFile) then
     local f = fs.open(coordsFile, "r")
     coords = textutils.unserialize(f.readAll())
     f.close()
-
-    if coords and coords.x and coords.y and coords.z then
-        print("Loaded saved coordinates:")
-        print("X=" .. coords.x .. "  Y=" .. coords.y .. "  Z=" .. coords.z)
-    else
-        coords = nil
-    end
 end
 
 if not coords then
@@ -48,6 +41,4 @@ if not coords then
     print("Coordinates saved.")
 end
 
-print("Starting GPS host at " .. coords.x .. " " .. coords.y .. " " .. coords.z)
-os.sleep(0)  -- kleines Yield, verhindert "too long without yielding"
 shell.run("gps", "host", coords.x, coords.y, coords.z)
