@@ -6,9 +6,9 @@ finder:openModem()
 if not os.getComputerLabel() then
     print("This computer has no label.")
     write("Enter a label: ")
-    local lbl = read()
-    os.setComputerLabel(lbl)
-    print("Label set to: " .. lbl)
+    local label = read()
+    os.setComputerLabel(label)
+    print("Label set to: " .. label)
 end
 
 -- Funktion zum Einlesen von Zahlen
@@ -43,4 +43,13 @@ if not coords then
     print("Coordinates saved.")
 end
 
-shell.run("gps", "host", coords.x, coords.y, coords.z)
+parallel.waitForAny(
+    function()
+        shell.run("gps", "host", coords.x, coords.y, coords.z)
+    end,
+    function()
+        while true do
+            os.pullEvent("timer")
+        end
+    end
+)
