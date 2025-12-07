@@ -1,6 +1,8 @@
 local DeviceFinder = require("helper.getDevices")
 local monitorFunctions = require("helper.monitorFunctions")
 local finder = DeviceFinder.new()
+local logger = require("helper.logger")
+local log = logger.new()
 finder:openModem()
 
 local function getNumber(prompt)
@@ -291,6 +293,7 @@ local function sendMessageToMonitor()
                 data.chestCoordinates = chestCoordinates
                 
                 -- Antwort an die Turtle
+                log:logDebug(data.turtleName, "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" .. data.chunkCoordinates.startZ)
                 rednet.send(id, textutils.serialize(data))
                 saveGlobalData(globalData)
             end

@@ -8,19 +8,33 @@ mon.clear()
 mon.setCursorPos(1, 1)
 mon.write("Warte auf Daten...")
 
-
 local PROTOCOL = "Debug"
 
 print("Debug Computer running...")
 
+-- Monitorgröße ermitteln
+local width, height = mon.getSize()
+local logLines = {} -- speichert die Nachrichten
+
 while true do
-    local sender, msg, proto = rednet.receive("Debug")
+    local sender, msg, proto = rednet.receive(PROTOCOL)
 
     if proto == PROTOCOL then
+        local debugMsg = msg.debug or "Waiting for Data..."
+
+        -- Nachricht in logLines hinzufügen
+        table.insert(logLines, debugMsg)
+
+        -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
+        if #logLines > height then
+            table.remove(logLines, 1) -- älteste Zeile entfernen
+        end
+
+        -- Monitor aktualisieren
         mon.clear()
-        mon.setCursorPos(1,1)
-        mon.write("DEBUG DATA:")
-        mon.setCursorPos(1,2)
-        mon.write(msg.debug or "no debug info")
+        for i, line in ipairs(logLines) do
+            mon.setCursorPos(1, i)
+            mon.write(line)
+        end
     end
 end

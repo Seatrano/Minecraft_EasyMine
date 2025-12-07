@@ -1,4 +1,8 @@
 local DeviceFinder = require("helper.getDevices")
+local finder = DeviceFinder.new()
+local logger = require("helper.logger")
+local log = logger.new()
+finder:openModem()
 
 
 local trash = {
@@ -504,6 +508,8 @@ local function connectToMaster()
         direction = direction,
     }
 
+    log:logDebug(turtleName, "Connecting to Master from X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
+
     rednet.broadcast(textutils.serialize(data), "MT")
     while true do
         local id, msg = rednet.receive(turtleName)
@@ -657,8 +663,6 @@ while true do
     sleep(1)
 end
 
-local finder = DeviceFinder.new()
-finder:openModem()
 
 direction = getDirection()
 if currentX and currentY and currentZ and direction then
