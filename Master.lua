@@ -294,7 +294,7 @@ local function sendMessageToMonitor()
                 
                 -- Antwort an die Turtle
                 print("Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" .. data.chunkCoordinates.startZ)
-                log:logDebug(data.turtleName, "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" .. data.chunkCoordinates.startZ)
+                log:logDebug("testsource", "testmessage")
                 rednet.send(id, textutils.serialize(data))
                 saveGlobalData(globalData)
             end
