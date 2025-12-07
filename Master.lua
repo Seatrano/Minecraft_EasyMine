@@ -1,3 +1,5 @@
+local DeviceFinder = require("helper.DeviceFinder")
+
 local version = "3.9.3"
 local chunkTimeout = 30 * 1000 -- 30 Sekunden
 local turtleTimeout = 5 * 1000 -- 5 Sekunden
@@ -7,6 +9,12 @@ local firstStartPoint = {
     x = 96,
     z = 64,
     y = 254
+}
+
+local chestCoordinates = {
+    x = 0,
+    y = 0,
+    z = 0
 }
 
 local maxDepth = -60
@@ -34,33 +42,15 @@ local function saveGlobalData(localData)
     file.close()
 end
 
-local sides = {"top", "bottom", "left", "right", "front", "back"}
-local modemSide = nil
-for _, side in ipairs(sides) do
-    if peripheral.getType(side) == "modem" then
-        modemSide = side
-        break
-    end
-end
+local finder = DeviceFinder.new()
 
-if modemSide then
-    rednet.open(modemSide)
-end
-
-local monitorSide = nil
-for _, side in ipairs(sides) do
-    if peripheral.getType(side) == "monitor" then
-        monitorSide = side
-        break
-    end
-end
-
-local mon = peripheral.wrap(monitorSide)
-local w, h = mon.getSize()
+finder:openModem()
+local mon = finder:getMonitor()
 
 mon.clear()
 mon.setCursorPos(1, 1)
 mon.write("Warte auf Daten...")
+
 
 -- Gibt die Koordinaten des Chunks x zurück
 local function getChunkCoordinates(chunkNumber)
@@ -258,10 +248,11 @@ local function sendMessageToMonitor()
                     lastUpdate = now
                 }
 
-                local chunk = findChunk(data.turtleName)
+                local data = findChunk(data.turtleName)
+                data.chestCoordinates = chestCoordinates
 
                 -- Antwort an die Turtle
-                rednet.send(id, textutils.serialize(chunk), data.turtleName)
+                rednet.send(id, textutils.serialize(data), data.turtleName)
                 saveGlobalData(globalData)
             end
 
@@ -342,7 +333,7 @@ local function sendDebugInfo()
     local time = os.epoch("utc")
 
     rednet.broadcast({
-        debug = time
+        debug = globalData
     }, "Debug")
 end
 

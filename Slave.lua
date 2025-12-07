@@ -1,3 +1,5 @@
+local DeviceFinder = require("helper.DeviceFinder")
+
 local version = "2.1"
 local trash = {
     ["minecraft:cobblestone"] = true,
@@ -22,12 +24,7 @@ local startCoords = {
     direction = 1
 }
 
-local chestCoords = {
-    x = 96,
-    z = 64,
-    y = 255,
-    direction = 2
-}
+local chestCoords = {}
 
 local function sleepForSeconds(seconds)
     for i = 1, seconds do
@@ -521,6 +518,10 @@ local function connectToMaster()
             startCoords.y = parsed.currentChunkDepth
             startCoords.direction = parsed.startDirection or 2
 
+            chestCoords.x = parsed.chestCoordinates.x
+            chestCoords.y = parsed.chestCoordinates.y
+            chestCoords.z = parsed.chestCoordinates.z
+
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
             break
         end
@@ -651,18 +652,8 @@ while true do
     sleep(1)
 end
 
-local sides = {"top", "bottom", "left", "right", "front", "back"}
-local modemSide = nil
-for _, side in ipairs(sides) do
-    if peripheral.getType(side) == "modem" then
-        modemSide = side
-        break
-    end
-end
-
-if modemSide then
-    rednet.open(modemSide)
-end
+local finder = DeviceFinder.new()
+finder:openModem()
 
 direction = getDirection()
 if currentX and currentY and currentZ and direction then
