@@ -49,7 +49,7 @@ parallel.waitForAny(
     end,
     function()
         while true do
-            os.pullEvent("timer")
+            os.pullEvent()
         end
     end
 )
