@@ -376,14 +376,12 @@ local function sendMessageToMonitor()
 end
 
 local function sendDebugInfo()
-    local time = os.epoch("utc")
-
     rednet.broadcast({
         debug = globalData
     }, "Debug")
 end
 
 while true do
-    parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
+    parallel.waitForAny(sendMessageToMonitor, textutils.serialize(sendDebugInfo))
     sleep(1)
 end
