@@ -273,7 +273,7 @@ local function sendMessageToMonitor()
 
 
         -- Nachricht von irgendeiner Turtle empfangen
-        local id, msg = rednet.receive()
+        local id, msg = rednet.receive(0.5)
         print("Received message from ID " .. id)
         if msg then
             print("Received message from ID " .. id .. " with msg: " .. msg)
@@ -380,7 +380,6 @@ local function sendDebugInfo()
 end
 
 
-sendMessageToMonitor()
 while true do
     parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
     sleep(1)
