@@ -644,7 +644,6 @@ local function quarry(length, width, height, startDirection)
 end
 
 -- Program Start
-print("Miner Turtle Version " .. version)
 sleepForSeconds(3)
 
 while true do
