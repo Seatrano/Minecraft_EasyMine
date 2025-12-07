@@ -377,11 +377,11 @@ end
 
 local function sendDebugInfo()
     rednet.broadcast({
-        debug = globalData
+        debug = textutils.serialize(globalData)
     }, "Debug")
 end
 
 while true do
-    parallel.waitForAny(sendMessageToMonitor, textutils.serialize(sendDebugInfo))
+    parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
     sleep(1)
 end
