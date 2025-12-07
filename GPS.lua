@@ -50,4 +50,4 @@ if not coords then
 end
 
 print("Starting GPS host at " .. coords.x .. " " .. coords.y .. " " .. coords.z)
-gps.host(coords.x, coords.y, coords.z)
+shell.run("gps", "host", coords.x, coords.y, coords.z)
