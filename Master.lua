@@ -346,4 +346,7 @@ local function sendDebugInfo()
     }, "Debug")
 end
 
-parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
+while true do
+    parallel.waitForAny(sendMessageToMonitor, sendDebugInfo)
+    sleep(1)
+end
