@@ -5,7 +5,7 @@ function monitorFunctions.new()
     return setmetatable({}, monitorFunctions)
 end
 
-function monitorFunctions:padRight(str, length)
+function monitorFunctions.padRight(str, length)
     str = tostring(str or "?")
     if #str < length then
         return string.rep(" ", length - #str) .. str
@@ -14,7 +14,7 @@ function monitorFunctions:padRight(str, length)
     end
 end
 
-function monitorFunctions:padLeft(str, length)
+function monitorFunctions.padLeft(str, length)
     str = tostring(str or "?")
     if #str < length then
         return str .. string.rep(" ", length - #str)
