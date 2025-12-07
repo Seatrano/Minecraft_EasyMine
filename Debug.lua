@@ -19,11 +19,9 @@ while true do
     local sender, msg, proto = rednet.receive(PROTOCOL)
     print("Received debug message from " .. sender .. " with protocol " .. (proto or "nil") .. " with msg and: " ..
               (msg.data or "nil"))
-    local msgTable = textutils.unserialize(msg)
-    local debugMsg = msgTable and msgTable.debug or msg or "Waiting for Data..."
-
+    
     -- Nachricht in logLines hinzufügen
-    table.insert(logLines, debugMsg)
+    table.insert(logLines, msg.debug)
 
     -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
     if #logLines > height then
