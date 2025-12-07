@@ -41,14 +41,13 @@ else
 end
 
 -- GPS Server starten (non-blocking, dauerhaft)
-parallel.waitForAny(
-    function()
-        shell.run("gps", "host", coords.x, coords.y, coords.z)
-    end,
-    function()
-        while true do
-            -- Yielding, damit ComputerCraft nicht meckert
-            os.pullEvent("timer") -- wartet auf Timer-Event, gibt CPU frei
-        end
+parallel.waitForAny(function()
+    shell.run("gps", "host", coords.x, coords.y, coords.z)
+end, function()
+    while true do
+        -- Yielding, damit ComputerCraft nicht meckert
+        local now = os.epoch("utc")
+        print("GPS server running at " .. now)
+        os.pullEvent("timer") -- wartet auf Timer-Event, gibt CPU frei
     end
-)
+end)
