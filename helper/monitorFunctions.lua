@@ -1,7 +1,11 @@
 local monitorFunctions = {}
 monitorFunctions.__index = monitorFunctions
 
-local function padRight(str, length)
+function monitorFunctions.new()
+    return setmetatable({}, monitorFunctions)
+end
+
+function monitorFunctions:padRight(str, length)
     str = tostring(str or "?")
     if #str < length then
         return string.rep(" ", length - #str) .. str
@@ -10,7 +14,7 @@ local function padRight(str, length)
     end
 end
 
-local function padLeft(str, length)
+function monitorFunctions:padLeft(str, length)
     str = tostring(str or "?")
     if #str < length then
         return str .. string.rep(" ", length - #str)

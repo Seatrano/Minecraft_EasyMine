@@ -1,7 +1,7 @@
 local DeviceFinder = require("helper.getDevices")
+local finder = DeviceFinder.new()
 local monitorFunctions = require("helper.monitorFunctions")
 local monitor = monitorFunctions.new()
-local finder = DeviceFinder.new()
 local logger = require("helper.logger")
 local log = logger.new()
 finder:openModem()
