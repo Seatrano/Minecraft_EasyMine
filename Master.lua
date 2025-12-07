@@ -211,7 +211,7 @@ local function findChunk(turtleName)
 
     -- Freien Chunk suchen
     for i, chunk in ipairs(globalData.chunks) do
-        if chunk.currentChunkDepth > maxDepth and chunk.workedByTurtleName == nil then
+        if chunk.currentChunkDepth > globalData.maxDepth and chunk.workedByTurtleName == nil then
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
             print("Assigning existing chunk " .. chunk.chunkNumber .. " to " .. turtleName)
