@@ -21,7 +21,7 @@ while true do
               (msg.data or "nil"))
     
     -- Nachricht in logLines hinzufügen
-    table.insert(logLines, msg.debug)
+    table.insert(logLines, textutils.unserialize(msg).debug)
 
     -- Sicherstellen, dass nur so viele Zeilen wie Monitorhöhe angezeigt werden
     if #logLines > height then
