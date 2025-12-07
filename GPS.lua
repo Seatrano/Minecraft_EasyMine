@@ -50,6 +50,7 @@ parallel.waitForAny(
     function()
         while true do
             os.pullEvent()
+            os.sleep(0)
         end
     end
 )
