@@ -29,6 +29,8 @@ local defaultConfig = {
     }
 }
 
+local w, h = mon.getSize()
+
 -- Ordner sicherstellen
 if not fs.exists("/config") then
     fs.makeDir("/config")
