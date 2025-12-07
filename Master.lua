@@ -59,8 +59,6 @@ if not fs.exists(configPath) then
     local f = fs.open(configPath, "w")
     f.write(textutils.serialize(defaultConfig))
     f.close()
-
-    print("Created: " .. configPath)
 end
 
 -- Config laden
@@ -177,7 +175,7 @@ local function getOrCreateChunk(n)
         return globalData.chunks[n]
     end
 
-    -- Muss erzeugt werden → Spiral berechnen
+    -- Muss erzeugt werden → Spirale berechnen
     local coords = getChunkCoordinates(n)
 
     local newChunk = {
@@ -196,7 +194,7 @@ local function findChunk(turtleName)
     local now = os.epoch("utc")
 
     -- Defaults setzen
-    for i, chunk in pairs(globalData.chunks) do
+    for i, chunk in ipairs(globalData.chunks) do
         chunk.workedByTurtleName = chunk.workedByTurtleName or nil
         chunk.chunkLastUpdate = chunk.chunkLastUpdate or 0
         chunk.currentChunkDepth = chunk.currentChunkDepth or globalData.startPoint.y
@@ -204,7 +202,7 @@ local function findChunk(turtleName)
     end
 
     -- Freien Chunk suchen
-    for i, chunk in pairs(globalData.chunks) do
+    for i, chunk in ipairs(globalData.chunks) do
         if chunk.currentChunkDepth > maxDepth and chunk.workedByTurtleName == nil then
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
@@ -226,21 +224,21 @@ local function findChunk(turtleName)
 end
 
 local function fixGlobalData()
-    -- globalData.chunks[2].workedByTurtleName = "MT1"
-    -- globalData.chunks[1].workedByTurtleName = nil
-    -- globalData.chunks[1].currentChunkDepth = 250
-    -- globalData.chunks[1].lastUpdate = nil
-    -- globalData.chunks[1].chunkCoordinates = {
-    --     startX = 96,
-    --     startZ = 64,
-    --     endX = 112,
-    --     endZ = 80
-    -- }
-
     saveGlobalData(globalData)
 end
 
 fixGlobalData()
+
+local function getNewTurtleName()
+    local maxNumber = 0
+    for name, _ in pairs(globalData.turtles) do
+        local number = tonumber(name:match("%d+")) or 1
+        if number > maxNumber then
+            maxNumber = number
+        end
+    end
+    return "MT" .. (maxNumber + 1)
+end
 
 local function sendMessageToMonitor()
 
@@ -277,6 +275,11 @@ local function sendMessageToMonitor()
             local data = textutils.unserialize(msg)
 
             if data.type == "newConnection" then
+
+                if not (data.turtleName) then
+                    data.turtleName = getNewTurtleName()
+                end
+
                 globalData.turtles[data.turtleName] = {
                     turtleName = data.turtleName,
                     coordinates = data.coordinates,
@@ -286,9 +289,9 @@ local function sendMessageToMonitor()
 
                 local data = findChunk(data.turtleName)
                 data.chestCoordinates = chestCoordinates
-
+                
                 -- Antwort an die Turtle
-                rednet.send(id, textutils.serialize(data), data.turtleName)
+                rednet.send(id, textutils.serialize(data))
                 saveGlobalData(globalData)
             end
 

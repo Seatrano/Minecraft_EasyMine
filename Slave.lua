@@ -1,6 +1,6 @@
 local DeviceFinder = require("helper.getDevices")
 
-local version = "2.1"
+
 local trash = {
     ["minecraft:cobblestone"] = true,
     ["minecraft:dirt"] = true,
@@ -501,7 +501,7 @@ local function connectToMaster()
             y = currentY,
             z = currentZ
         },
-        direction = direction
+        direction = direction,
     }
 
     rednet.broadcast(textutils.serialize(data), "MT")
@@ -510,6 +510,12 @@ local function connectToMaster()
         if msg then
             local parsed = textutils.unserialize(msg)
             print("Received message with msg:" .. msg)
+
+            if not os.getComputerLabel() then
+                os.setComputerLabel(parsed.turtleName)
+                turtleName = parsed.turtleName
+            end
+
             chunkNumber = parsed.chunkNumber
             print("Going to chunk " .. chunkNumber)
 
