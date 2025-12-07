@@ -376,9 +376,7 @@ local function sendMessageToMonitor()
 end
 
 local function sendDebugInfo()
-    rednet.broadcast({
-        debug = "TEST"
-    }, "Debug")
+    log:logDebug("Master", "Master is running.")
 end
 
 while true do
