@@ -25,6 +25,8 @@ if fs.exists(coordsFile) then
     local f = fs.open(coordsFile, "r")
     coords = textutils.unserialize(f.readAll())
     f.close()
+
+    print("Loaded GPS coordinates: X=" .. coords.x .. " Y=" .. coords.y .. " Z=" .. coords.z)
 end
 
 if not coords then
