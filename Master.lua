@@ -300,12 +300,12 @@ local function sendMessageToMonitor()
 
                 -- chunk data separat
                 local chunk = findChunk(message.turtleName)
-                chunk.chestCoordinates = chestCoordinates
+                
 
                 -- Antwortdaten generieren
                 local reply = {
                     turtleName = message.turtleName,
-                    chestCoordinates = chunk.chestCoordinates,
+                    chestCoordinates = globalData.chestCoordinates,
                     chunkNumber = chunk.chunkNumber
                 }
 
