@@ -234,6 +234,7 @@ local function findChunk(turtleName)
     local chunk = getOrCreateChunk(newIndex)
     chunk.workedByTurtleName = turtleName
     chunk.chunkLastUpdate = now
+    chunk.chunkNumber = newIndex
     print("No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
     saveGlobalData(globalData)
     return chunk
