@@ -514,8 +514,9 @@ local function connectToMaster()
     while true do
         local id, msg = rednet.receive(computerId)
         if msg then
+            print(msg)
             local dataReceived = textutils.unserialize(msg)
-
+            print(dataReceived)
             log:logDebug(turtleName, "chunkNumber " .. dataReceived.chunkNumber .. " assigned by Master")
             if not os.getComputerLabel() then
                 os.setComputerLabel(dataReceived.turtleName)
