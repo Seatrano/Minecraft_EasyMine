@@ -514,23 +514,24 @@ local function connectToMaster()
     while true do
         local id, msg = rednet.receive(computerId)
         if msg then
-            log:logDebug(turtleName, "chunkNumber " .. msg.chunkNumber .. " assigned by Master")
+            local dataReceived = textutils.unserialize(msg)
+
+            log:logDebug(turtleName, "chunkNumber " .. dataReceived.chunkNumber .. " assigned by Master")
             if not os.getComputerLabel() then
-                os.setComputerLabel(msg.turtleName)
-                turtleName = msg.turtleName
+                os.setComputerLabel(dataReceived.turtleName)
+                turtleName = dataReceived.turtleName
             end
 
-            chunkNumber = msg.chunkNumber
-            print("Going to chunk " .. msg.chunkNumber)
+            chunkNumber = dataReceived.chunkNumber
+            print("Going to chunk " .. dataReceived.chunkNumber)
+            startCoords.x = dataReceived.chunkCoordinates.startX
+            startCoords.z = dataReceived.chunkCoordinates.startZ
+            startCoords.y = dataReceived.currentChunkDepth
+            startCoords.direction = dataReceived.startDirection or 2
 
-            startCoords.x = msg.chunkCoordinates.startX
-            startCoords.z = msg.chunkCoordinates.startZ
-            startCoords.y = msg.currentChunkDepth
-            startCoords.direction = msg.startDirection or 2
-
-            chestCoords.x = msg.chestCoordinates.x
-            chestCoords.y = msg.chestCoordinates.y
-            chestCoords.z = msg.chestCoordinates.z
+            chestCoords.x = dataReceived.chestCoordinates.x
+            chestCoords.y = dataReceived.chestCoordinates.y
+            chestCoords.z = dataReceived.chestCoordinates.z
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
             break
         end
