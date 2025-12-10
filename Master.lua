@@ -293,7 +293,7 @@ local function sendMessageToMonitor()
             log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
             if data.type == "newConnection" then
 
-                if not (data.turtleName) then
+                if data.turtleName == nil then
                     data.turtleName = getNewTurtleName()
                 end
 
