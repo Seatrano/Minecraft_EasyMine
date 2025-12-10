@@ -253,6 +253,7 @@ local function getNewTurtleName()
             maxNumber = number
         end
     end
+    print("Assigning new turtle name MT" .. (maxNumber + 1))
     return "MT" .. (maxNumber + 1)
 end
 
