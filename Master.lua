@@ -99,7 +99,8 @@ end
 local globalData = loadGlobalData() or {
     startPoint = firstStartPoint,
     chunks = {},
-    turtles = {}
+    turtles = {},
+    maxDepth = config.maxDepth
 }
 
 local function saveGlobalData(localData)
