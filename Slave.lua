@@ -514,7 +514,7 @@ local function connectToMaster()
     while true do
         local id, msg = rednet.receive(computerId)
         if msg then
-
+            log:logDebug(turtleName, msg)
             if not os.getComputerLabel() then
                 os.setComputerLabel(msg.turtleName)
                 turtleName = msg.turtleName

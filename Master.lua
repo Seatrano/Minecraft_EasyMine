@@ -221,6 +221,7 @@ local function findChunk(turtleName)
         if chunk.currentChunkDepth > globalData.maxDepth and chunk.workedByTurtleName == nil then
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
+            chunk.chunkNumber = i
             print("Assigning existing chunk " .. chunk.chunkNumber .. " to " .. turtleName)
             saveGlobalData(globalData)
             print(textutils.serialize(globalData.chunks[i]))
