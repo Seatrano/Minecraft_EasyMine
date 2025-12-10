@@ -306,7 +306,8 @@ local function sendMessageToMonitor()
                 local reply = {
                     turtleName = message.turtleName,
                     chestCoordinates = globalData.chestCoordinates,
-                    chunkNumber = chunk.chunkNumber
+                    chunkNumber = chunk.chunkNumber,
+                    chunkCoordinates = chunk.chunkCoordinates,
                 }
 
                 log:logDebug("Master",
