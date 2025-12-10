@@ -247,7 +247,7 @@ fixGlobalData()
 
 local function getNewTurtleName()
     local maxNumber = 0
-    for name, _ in pairs(globalData.turtles) do
+    for name, _ in ipairs(globalData.turtles) do
         local number = tonumber(name:match("%d+")) or 1
         if number > maxNumber then
             maxNumber = number
@@ -293,6 +293,7 @@ local function sendMessageToMonitor()
             if data.type == "newConnection" then
                 print(data.turtleName)
                 if data.turtleName == nil then
+                    print("Assigning new turtle name")
                     data.turtleName = getNewTurtleName()
                 end
 
