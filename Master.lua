@@ -239,11 +239,6 @@ local function findChunk(turtleName)
     return chunk
 end
 
-local function fixGlobalData()
-    saveGlobalData(globalData)
-end
-
-fixGlobalData()
 
 local function getNewTurtleName()
     local maxNumber = 0

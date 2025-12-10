@@ -651,7 +651,7 @@ local function quarry(length, width, height, startDirection)
 end
 
 -- Program Start
-sleepForSeconds(3)
+--sleepForSeconds(3)
 
 while true do
 
