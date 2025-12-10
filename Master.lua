@@ -33,8 +33,6 @@ local defaultConfig = {
     maxDepth = -60
 }
 
-
-
 -- Ordner sicherstellen
 if not fs.exists("/config") then
     fs.makeDir("/config")
@@ -215,10 +213,10 @@ local function findChunk(turtleName)
 
     -- Freien Chunk suchen
     for i, chunk in ipairs(globalData.chunks) do
-        log:logDebug("Master", "Checking chunk " .. chunk.chunkNumber .. " workedByTurtleName=" ..
-                              tostring(chunk.workedByTurtleName) .. " currentChunkDepth=" .. tostring(
-            chunk.currentChunkDepth))
-            log:logDebug("Master", "Max depth is " .. tostring(globalData.maxDepth))
+        log:logDebug("Master",
+            "Checking chunk " .. chunk.chunkNumber .. " workedByTurtleName=" .. tostring(chunk.workedByTurtleName) ..
+                " currentChunkDepth=" .. tostring(chunk.currentChunkDepth))
+        log:logDebug("Master", "Max depth is " .. tostring(globalData.maxDepth))
         if chunk.currentChunkDepth > globalData.maxDepth and chunk.workedByTurtleName == nil then
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
@@ -235,7 +233,8 @@ local function findChunk(turtleName)
     chunk.workedByTurtleName = turtleName
     chunk.chunkLastUpdate = now
     chunk.chunkNumber = newIndex
-    log:logDebug("Master", "No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
+    log:logDebug("Master",
+        "No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
     saveGlobalData(globalData)
     return chunk
 end
@@ -308,10 +307,11 @@ local function sendMessageToMonitor()
                 data.chestCoordinates = chestCoordinates
                 data.chunkNumber = data.chunkNumber
 
-
                 -- Antwort an die Turtle
-                log:logDebug("Master", "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
-                          data.chunkCoordinates.startZ)
+                log:logDebug("Master",
+                    "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
+                        data.chunkCoordinates.startZ)
+                log:logDebug("Master", "Turtle name is " .. data.turtleName)
                 rednet.send(id, textutils.serialize(data), "C")
                 saveGlobalData(globalData)
             end
