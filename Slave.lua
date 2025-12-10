@@ -514,6 +514,11 @@ local function connectToMaster()
     while true do
         local id, msg = rednet.receive(computerId)
         if msg then
+            local dataReceived = textutils.unserialize(msg)
+            if dataReceived then
+                log:logDebug(turtleName, "chunkNumber " .. tostring(dataReceived.chunkNumber) .. " assigned by Master")
+            end
+
             print(msg)
             log:logDebug(turtleName, "chunkNumber " .. msg.chunkNumber .. " assigned by Master")
             if not os.getComputerLabel() then
@@ -532,7 +537,7 @@ local function connectToMaster()
             chestCoords.z = msg.chestCoordinates.z
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
             break
-        else 
+        else
             log:logDebug(turtleName, "No response from Master, retrying in 3 seconds...")
             sleepForSeconds(3)
         end
