@@ -239,7 +239,6 @@ local function findChunk(turtleName)
     return chunk
 end
 
-
 local function getNewTurtleName()
     local maxNumber = 0
     for name, _ in pairs(globalData.turtles) do
@@ -281,82 +280,42 @@ local function sendMessageToMonitor()
             end
         end
 
-        -- Nachricht von irgendeiner Turtle empfangen
         local id, msg = rednet.receive("MT")
-
         if msg and id ~= computerId then
-            local data = textutils.unserialize(msg)
+            local message = textutils.unserialize(msg)
+            log:logDebug("Master", "Received message: " .. (textutils.serialize(message) or "<nil>"))
 
-            log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
-
-            ----------------------------------------------------------------------
-            -- newConnection
-            ----------------------------------------------------------------------
-            if data.type == "newConnection" then
-                print(data.turtleName)
-
-                if data.turtleName == nil then
-                    print("Assigning new turtle name")
-                    data.turtleName = getNewTurtleName()
+            if message.type == "newConnection" then
+                if message.turtleName == nil then
+                    message.turtleName = getNewTurtleName()
                 end
 
-                -- Turtle speichern
-                globalData.turtles[data.turtleName] = {
-                    turtleName = data.turtleName,
-                    coordinates = data.coordinates,
-                    direction = data.direction,
+                -- turtle registry
+                globalData.turtles[message.turtleName] = {
+                    turtleName = message.turtleName,
+                    coordinates = message.coordinates,
+                    direction = message.direction,
                     lastUpdate = now
                 }
 
-                -- Chunk bestimmen
-                local dataToSend = findChunk(data.turtleName)
-                dataToSend.chestCoordinates = chestCoordinates
-                dataToSend.turtleName = data.turtleName
+                -- chunk data separat
+                local chunk = findChunk(message.turtleName)
+                chunk.chestCoordinates = chestCoordinates
 
-                -- WICHTIG: chunkNumber kommt von findChunk(), NICHT aus der Nachricht
-                -- (vorher wurde hier irrtümlich überschrieben!)
-                -- dataToSend.chunkNumber bleibt unverändert aus findChunk()
+                -- Antwortdaten generieren
+                local reply = {
+                    turtleName = message.turtleName,
+                    chestCoordinates = chunk.chestCoordinates,
+                    chunkNumber = chunk.chunkNumber
+                }
 
                 log:logDebug("Master",
-                    "Assigned to chunk " .. dataToSend.chunkNumber .. " at X:" .. dataToSend.chunkCoordinates.startX ..
-                        " Z:" .. dataToSend.chunkCoordinates.startZ)
+                    "Assigned to chunk " .. reply.chunkNumber .. " at X:" .. reply.chestCoordinates.startX .. " Z:" ..
+                        reply.chestCoordinates.startZ)
 
-                log:logDebug("Master", "Turtle name is " .. data.turtleName)
+                log:logDebug("Master", "Turtle name is " .. reply.turtleName)
 
-                rednet.send(id, textutils.serialize(dataToSend), "C")
-                saveGlobalData(globalData)
-            end
-
-            ----------------------------------------------------------------------
-            -- updateLayer
-            ----------------------------------------------------------------------
-            if data.type == "updateLayer" then
-                local chunkNumber = data.chunkNumber
-                if globalData.chunks[chunkNumber] then
-                    globalData.chunks[chunkNumber].currentChunkDepth = data.height
-                    saveGlobalData(globalData)
-                end
-            end
-
-            ----------------------------------------------------------------------
-            -- update (Status einer Turtle)
-            ----------------------------------------------------------------------
-            if data.type == "update" and data.turtleName then
-                globalData.turtles[data.turtleName] = {
-                    turtleName = data.turtleName,
-                    coordinates = data.coordinates,
-                    direction = data.direction,
-                    fuelLevel = data.fuelLevel,
-                    status = data.status,
-                    chunkNumber = data.chunkNumber,
-                    lastUpdate = now
-                }
-
-                if globalData.chunks[data.chunkNumber] then
-                    globalData.chunks[data.chunkNumber].workedByTurtleName = data.turtleName
-                    globalData.chunks[data.chunkNumber].chunkLastUpdate = os.epoch("utc")
-                end
-
+                rednet.send(id, textutils.serialize(reply), "C")
                 saveGlobalData(globalData)
             end
         end
