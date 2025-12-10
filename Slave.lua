@@ -518,6 +518,7 @@ local function connectToMaster()
             log:logDebug("?", "chunkNumber " .. dataReceived.chunkNumber .. " assigned by Master")
 
             if os.getComputerLabel() == nil then
+                log:logDebug(turtleName, "Setting computer label to " .. dataReceived.turtleName)
                 os.setComputerLabel(dataReceived.turtleName)
                 turtleName = dataReceived.turtleName
             end
