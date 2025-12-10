@@ -305,16 +305,16 @@ local function sendMessageToMonitor()
                     lastUpdate = now
                 }
 
-                local data = findChunk(data.turtleName)
-                data.chestCoordinates = chestCoordinates
-                data.chunkNumber = data.chunkNumber
+                local dataToSend = findChunk(data.turtleName)
+                dataToSend.chestCoordinates = chestCoordinates
+                dataToSend.chunkNumber = data.chunkNumber
 
                 -- Antwort an die Turtle
                 log:logDebug("Master",
-                    "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
-                        data.chunkCoordinates.startZ)
+                    "Assigned to chunk " .. dataToSend.chunkNumber .. " at X:" .. dataToSend.chunkCoordinates.startX .. " Z:" ..
+                        dataToSend.chunkCoordinates.startZ)
                 log:logDebug("Master", "Turtle name is " .. data.turtleName)
-                rednet.send(id, textutils.serialize(data), "C")
+                rednet.send(id, textutils.serialize(dataToSend), "C")
                 saveGlobalData(globalData)
             end
 
