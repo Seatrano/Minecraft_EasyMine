@@ -63,6 +63,8 @@ if not fs.exists(configPath) then
     defaultConfig.firstStartPoint = coords
     defaultConfig.chestCoordinates = chestCoords
 
+    defaultConfig.maxDepth = -60
+
     local f = fs.open(configPath, "w")
     f.write(textutils.serialize(defaultConfig))
     f.close()
