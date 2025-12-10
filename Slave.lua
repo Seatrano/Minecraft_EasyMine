@@ -512,8 +512,8 @@ local function connectToMaster()
 
     rednet.broadcast(textutils.serialize(data), "MT")
     while true do
-        local id, msg = rednet.receive()
-        if msg and id ~= computerId then
+        local id, msg = rednet.receive("C")
+        if msg then
             local dataReceived = textutils.unserialize(msg)
 
             log:logDebug("TEMP", "chunkNumber " .. dataReceived.chunkNumber .. " assigned by Master")

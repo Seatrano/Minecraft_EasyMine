@@ -287,7 +287,7 @@ local function sendMessageToMonitor()
         end
 
         -- Nachricht von irgendeiner Turtle empfangen
-        local id, msg = rednet.receive()
+        local id, msg = rednet.receive("MT")
         if msg and id ~= computerId then
             local data = textutils.unserialize(msg)
             log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
@@ -312,7 +312,7 @@ local function sendMessageToMonitor()
                 -- Antwort an die Turtle
                 log:logDebug("Master", "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
                           data.chunkCoordinates.startZ)
-                rednet.broadcast(textutils.serialize(data), tostring(id))
+                rednet.send(id, textutils.serialize(data), "C")
                 saveGlobalData(globalData)
             end
 
