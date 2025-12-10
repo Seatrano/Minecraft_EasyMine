@@ -310,8 +310,8 @@ local function sendMessageToMonitor()
                 }
 
                 log:logDebug("Master",
-                    "Assigned to chunk " .. reply.chunkNumber .. " at X:" .. reply.chestCoordinates.startX .. " Z:" ..
-                        reply.chestCoordinates.startZ)
+                    "Assigned to chunk " .. reply.chunkNumber .. " at X:" .. reply.chestCoordinates.x .. " Y:" ..
+                        reply.chestCoordinates.y .. " Z:" .. reply.chestCoordinates.z)
 
                 log:logDebug("Master", "Turtle name is " .. reply.turtleName)
 
