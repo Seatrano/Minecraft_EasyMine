@@ -12,6 +12,7 @@ local function getNumber(prompt)
 end
 
 local configPath = "/config/config.lua"
+local computerId = os.getComputerID()
 
 local defaultConfig = {
     chunkTimeout = 30 * 1000,
@@ -39,7 +40,7 @@ if not fs.exists("/config") then
     fs.makeDir("/config")
 end
 
--- Config erzeugen, wenn nicht vorhanden
+-- Config erzeugen, wenn nicht vorhandenf
 if not fs.exists(configPath) then
     print("Enter the start Coordinates of the chunk generation:")
     local coords = {
@@ -287,7 +288,7 @@ local function sendMessageToMonitor()
 
         -- Nachricht von irgendeiner Turtle empfangen
         local id, msg = rednet.receive()
-        if msg then
+        if msg and id ~= computerId then
             local data = textutils.unserialize(msg)
             log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
             if data.type == "newConnection" then
