@@ -247,7 +247,7 @@ fixGlobalData()
 
 local function getNewTurtleName()
     local maxNumber = 0
-    for name, _ in ipairs(globalData.turtles) do
+    for name, _ in pairs(globalData.turtles) do
         local number = tonumber(name:match("%d+")) or 1
         if number > maxNumber then
             maxNumber = number
