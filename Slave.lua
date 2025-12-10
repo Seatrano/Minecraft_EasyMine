@@ -15,6 +15,7 @@ local trash = {
     ["minecraft:cobbled_deepslate"] = true
 }
 
+local computerId = os.getComputerID()
 local turtleName = os.getComputerLabel()
 local currentX, currentY, currentZ
 local direction = 2
@@ -511,7 +512,7 @@ local function connectToMaster()
 
     rednet.broadcast(textutils.serialize(data), "MT")
     while true do
-        local id, msg = rednet.receive("4711")
+        local id, msg = rednet.receive(computerId)
         if msg then
 
             if not os.getComputerLabel() then
