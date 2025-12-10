@@ -312,7 +312,7 @@ local function sendMessageToMonitor()
                 -- Antwort an die Turtle
                 log:logDebug("Master", "Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
                           data.chunkCoordinates.startZ)
-                rednet.broadcast(textutils.serialize(data), id)
+                rednet.broadcast(textutils.serialize(data), tostring(id))
                 saveGlobalData(globalData)
             end
 
