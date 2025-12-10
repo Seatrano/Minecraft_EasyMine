@@ -517,7 +517,7 @@ local function connectToMaster()
             local dataReceived = textutils.unserialize(msg)
             log:logDebug("?", "chunkNumber " .. dataReceived.chunkNumber .. " assigned by Master")
 
-            if os.getComputerLabel() == "" then
+            if os.getComputerLabel() == nil then
                 os.setComputerLabel(dataReceived.turtleName)
                 turtleName = dataReceived.turtleName
             end
