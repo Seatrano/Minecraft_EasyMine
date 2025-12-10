@@ -291,7 +291,7 @@ local function sendMessageToMonitor()
             local data = textutils.unserialize(msg)
             log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
             if data.type == "newConnection" then
-
+                print(data.turtleName)
                 if data.turtleName == nil then
                     data.turtleName = getNewTurtleName()
                 end
