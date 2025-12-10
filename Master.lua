@@ -305,6 +305,7 @@ local function sendMessageToMonitor()
 
                 local data = findChunk(data.turtleName)
                 data.chestCoordinates = chestCoordinates
+                data.chunkNumber = data.chunkNumber
 
                 -- Antwort an die Turtle
                 print("Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
