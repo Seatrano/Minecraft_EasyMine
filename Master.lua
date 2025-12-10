@@ -307,7 +307,7 @@ local function sendMessageToMonitor()
                 print("Assigned to chunk " .. data.chunkNumber .. " at X:" .. data.chunkCoordinates.startX .. " Z:" ..
                           data.chunkCoordinates.startZ)
                 log:logDebug("testsource", "testmessage")
-                rednet.send("4711", textutils.serialize(data))
+                rednet.send(id, textutils.serialize(data))
                 saveGlobalData(globalData)
             end
 
