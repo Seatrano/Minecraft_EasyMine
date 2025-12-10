@@ -222,9 +222,8 @@ local function findChunk(turtleName)
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
             chunk.chunkNumber = i
-            print("Assigning existing chunk " .. chunk.chunkNumber .. " to " .. turtleName)
+            log:logDebug("Master", "Assigning existing chunk " .. chunk.chunkNumber .. " to " .. turtleName)
             saveGlobalData(globalData)
-            print(textutils.serialize(globalData.chunks[i]))
             return chunk
         end
     end
@@ -235,7 +234,7 @@ local function findChunk(turtleName)
     chunk.workedByTurtleName = turtleName
     chunk.chunkLastUpdate = now
     chunk.chunkNumber = newIndex
-    print("No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
+    log:logDebug("Master", "No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
     saveGlobalData(globalData)
     return chunk
 end
@@ -267,7 +266,7 @@ local function sendMessageToMonitor()
             chunkLastCheck = now
             for _, chunk in ipairs(globalData.chunks) do
                 if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > chunkTimeout then
-                    print("Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
+                    log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
                     chunk.workedByTurtleName = nil
                     chunk.chunkLastUpdate = nil
                 end
@@ -288,7 +287,6 @@ local function sendMessageToMonitor()
 
         -- Nachricht von irgendeiner Turtle empfangen
         local id, msg = rednet.receive()
-        print(msg)
         if msg then
             local data = textutils.unserialize(msg)
             log:logDebug("Master", "Received message: " .. (textutils.serialize(data) or "<nil>"))
