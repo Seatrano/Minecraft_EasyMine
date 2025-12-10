@@ -521,7 +521,6 @@ local function connectToMaster()
                 turtleName = msg.turtleName
             end
 
-            chunkNumber = msg.chunkNumber
             print("Going to chunk " .. msg.chunkNumber)
             startCoords.x = msg.chunkCoordinates.startX
             startCoords.z = msg.chunkCoordinates.startZ
@@ -533,6 +532,9 @@ local function connectToMaster()
             chestCoords.z = msg.chestCoordinates.z
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
             break
+        else 
+            log:logDebug(turtleName, "No response from Master, retrying in 3 seconds...")
+            sleepForSeconds(3)
         end
     end
 end
