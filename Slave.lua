@@ -497,6 +497,7 @@ end
 
 local function connectToMaster()
     print("Connecting to Master...")
+
     local data = {
         type = "newConnection",
         turtleName = turtleName,
@@ -511,35 +512,49 @@ local function connectToMaster()
     log:logDebug(turtleName, "Connecting to Master from X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
 
     rednet.broadcast(textutils.serialize(data), "MT")
+
     while true do
         local id, msg = rednet.receive("C")
         if msg then
             local dataReceived = textutils.unserialize(msg)
-            log:logDebug("?", "chunkNumber " .. dataReceived.chunkNumber .. " assigned by Master")
+            log:logDebug(turtleName, "Received config from Master, chunkNumber: " .. dataReceived.chunkNumber)
 
+            -- Turtle-Name setzen, falls noch nicht vergeben
             if os.getComputerLabel() == nil then
                 log:logDebug(turtleName, "Setting computer label to " .. dataReceived.turtleName)
                 os.setComputerLabel(dataReceived.turtleName)
                 turtleName = dataReceived.turtleName
             end
 
-            print("Going to chunk " .. dataReceived.chunkNumber)
+            -- Startkoordinaten vom Master übernehmen
             startCoords.x = dataReceived.chunkCoordinates.startX
             startCoords.z = dataReceived.chunkCoordinates.startZ
             startCoords.y = dataReceived.currentChunkDepth
-            startCoords.direction = dataReceived.startDirection or 2
+            startCoords.direction = dataReceived.startDirection or 1  -- Default North
 
+            -- Optional: Endkoordinaten speichern, falls benötigt
+            endCoords = {
+                x = dataReceived.chunkCoordinates.endX,
+                z = dataReceived.chunkCoordinates.endZ
+            }
+
+            -- Chest-Koordinaten
             chestCoords.x = dataReceived.chestCoordinates.x
             chestCoords.y = dataReceived.chestCoordinates.y
             chestCoords.z = dataReceived.chestCoordinates.z
+
+            -- Turtle zum Startpunkt bewegen
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
+
+            log:logDebug(turtleName, "Going to chunk " .. dataReceived.chunkNumber)
             break
         else
             log:logDebug(turtleName, "No response from Master, retrying in 3 seconds...")
-            sleepForSeconds(3)
+            sleep(3)
         end
     end
 end
+
 
 local function refuel()
     status = "Refueling"
