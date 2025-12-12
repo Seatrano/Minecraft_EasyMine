@@ -4,109 +4,28 @@ local monitorFunctions = require("helper.monitorFunctions")
 local monitor = monitorFunctions.new()
 local logger = require("helper.logger")
 local log = logger.new()
+local MasterConfig = require("helper.MasterConfig")
+
+local masterConfig = MasterConfig:new()
+
+local CONFIG_PATH = "/config/config.lua"
+local STATE_PATH = "globalData.txt"
+if not masterConfig:loadConfig(CONFIG_PATH) then
+    print("No config found – creating default config")
+    config:saveConfig(CONFIG_PATH)
+end
+
 finder:openModem()
+
+local computerId = os.getComputerID()
 
 local function getNumber(prompt)
     write(prompt)
     return tonumber(read())
 end
 
-local configPath = "/config/config.lua"
-local computerId = os.getComputerID()
-
-local defaultConfig = {
-    chunkTimeout = 30 * 1000,
-    turtleTimeout = 5 * 1000,
-
-    firstStartPoint = {
-        x = 0,
-        y = 0,
-        z = 0
-    },
-
-    chestCoordinates = {
-        x = 0,
-        y = 0,
-        z = 0
-    },
-
-    maxDepth = -60
-}
-
--- Ordner sicherstellen
-if not fs.exists("/config") then
-    fs.makeDir("/config")
-end
-
--- Config erzeugen, wenn nicht vorhandenf
-if not fs.exists(configPath) then
-    print("Enter the start Coordinates of the chunk generation:")
-    local coords = {
-        x = getNumber("X: "),
-        y = getNumber("Y: "),
-        z = getNumber("Z: ")
-    }
-
-    print("Enter the chest Coordinates for the turtles:")
-    local chestCoords = {
-        x = getNumber("X: "),
-        y = getNumber("Y: "),
-        z = getNumber("Z: ")
-    }
-
-    local chunkTimeout = getNumber("Enter chunk timeout in seconds (default 30): ") or 30
-    local turtleTimeout = getNumber("Enter turtle timeout in seconds (default 5): ") or 5
-    defaultConfig.chunkTimeout = chunkTimeout * 1000
-    defaultConfig.turtleTimeout = turtleTimeout * 1000
-
-    defaultConfig.firstStartPoint = coords
-    defaultConfig.chestCoordinates = chestCoords
-
-    defaultConfig.maxDepth = -60
-
-    local f = fs.open(configPath, "w")
-    f.write(textutils.serialize(defaultConfig))
-    f.close()
-end
-
--- Config laden
-local configFile = fs.open(configPath, "r")
-local configContent = configFile.readAll()
-configFile.close()
-local config = textutils.unserialize(configContent)
-
--- Werte verwenden
-local chunkTimeout = config.chunkTimeout
-local turtleTimeout = config.turtleTimeout
-local firstStartPoint = config.firstStartPoint
-local chestCoordinates = config.chestCoordinates
-
 local chunkLastCheck = os.epoch("utc")
 local turtleLastCheck = os.epoch("utc")
-
-local function loadGlobalData()
-    if fs.exists("globalData.txt") then
-        local file = fs.open("globalData.txt", "r")
-        local content = file.readAll()
-        file.close()
-        return textutils.unserialize(content)
-    else
-        return nil
-    end
-end
-
-local globalData = loadGlobalData() or {
-    startPoint = firstStartPoint,
-    chunks = {},
-    turtles = {},
-    maxDepth = config.maxDepth
-}
-
-local function saveGlobalData(localData)
-    local file = fs.open("globalData.txt", "w")
-    file.write(textutils.serialize(localData))
-    file.close()
-end
 
 local mon = finder:getMonitor()
 local w, h = mon.getSize()
@@ -114,55 +33,6 @@ local w, h = mon.getSize()
 mon.clear()
 mon.setCursorPos(1, 1)
 mon.write("Warte auf Daten...")
-
--- Gibt die Koordinaten des Chunks x zurück
-local function getChunkCoordinates(chunkNumber)
-    local step = 16
-    local x, z = firstStartPoint.x, firstStartPoint.z
-    local dir = 1 -- 1=right, 2=up, 3=left, 4=down    
-    local steps_in_dir = 1
-    local steps_done = 0
-    local change_after = 2
-
-    if chunkNumber == 1 then
-        return {
-            startX = x,
-            startZ = z,
-            endX = x + step,
-            endZ = z + step
-        }
-    end
-
-    for i = 2, chunkNumber do
-        if dir == 1 then
-            x = x + step
-        elseif dir == 2 then
-            z = z + step
-        elseif dir == 3 then
-            x = x - step
-        elseif dir == 4 then
-            z = z - step
-        end
-
-        steps_done = steps_done + 1
-        if steps_done == steps_in_dir then
-            dir = dir % 4 + 1
-            steps_done = 0
-            change_after = change_after - 1
-            if change_after == 0 then
-                steps_in_dir = steps_in_dir + 1
-                change_after = 2
-            end
-        end
-    end
-
-    return {
-        startX = x,
-        startZ = z,
-        endX = x + step,
-        endZ = z + step
-    }
-end
 
 local function directionToString(dir)
     if dir == 1 then
@@ -178,71 +48,10 @@ local function directionToString(dir)
     end
 end
 
--- Gibt den Chunk mit Index n zurück (erzeugt ihn bei Bedarf)
-local function getOrCreateChunk(n)
-    -- Bereits erzeugt?
-    if globalData.chunks[n] then
-        return globalData.chunks[n]
-    end
-
-    -- Muss erzeugt werden → Spirale berechnen
-    local coords = getChunkCoordinates(n)
-
-    local newChunk = {
-        chunkNumber = n,
-        chunkCoordinates = coords,
-        currentChunkDepth = globalData.startPoint.y,
-        workedByTurtleName = nil,
-        chunkLastUpdate = nil
-    }
-
-    globalData.chunks[n] = newChunk
-    return newChunk
-end
-
-local function findChunk(turtleName)
-    local now = os.epoch("utc")
-
-    -- Defaults setzen
-    for i, chunk in ipairs(globalData.chunks) do
-        chunk.workedByTurtleName = chunk.workedByTurtleName or nil
-        chunk.chunkLastUpdate = chunk.chunkLastUpdate or 0
-        chunk.currentChunkDepth = chunk.currentChunkDepth or globalData.startPoint.y
-        chunk.chunkCoordinates = chunk.chunkCoordinates or getChunkCoordinates(i)
-    end
-
-    -- Freien Chunk suchen
-    for i, chunk in ipairs(globalData.chunks) do
-        log:logDebug("Master",
-            "Checking chunk " .. chunk.chunkNumber .. " workedByTurtleName=" .. tostring(chunk.workedByTurtleName) ..
-                " currentChunkDepth=" .. tostring(chunk.currentChunkDepth))
-        log:logDebug("Master", "Max depth is " .. tostring(globalData.maxDepth))
-        if chunk.currentChunkDepth > globalData.maxDepth and chunk.workedByTurtleName == nil then
-            chunk.workedByTurtleName = turtleName
-            chunk.chunkLastUpdate = now
-            chunk.chunkNumber = i
-            log:logDebug("Master", "Assigning existing chunk " .. chunk.chunkNumber .. " to " .. turtleName)
-            saveGlobalData(globalData)
-            return chunk
-        end
-    end
-
-    -- Keiner frei → neuen Chunk erzeugen
-    local newIndex = #globalData.chunks + 1
-    local chunk = getOrCreateChunk(newIndex)
-    chunk.workedByTurtleName = turtleName
-    chunk.chunkLastUpdate = now
-    chunk.chunkNumber = newIndex
-    log:logDebug("Master",
-        "No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
-    saveGlobalData(globalData)
-    return chunk
-end
-
 local function getNewTurtleName()
     local maxNumber = 0
-    for name, _ in pairs(globalData.turtles) do
-        local number = tonumber(name:match("%d+")) or 1
+    for name, _ in pairs(masterConfig.turtles) do
+        local number = tonumber(name:match("%d+")) or 0
         if number > maxNumber then
             maxNumber = number
         end
@@ -252,15 +61,14 @@ local function getNewTurtleName()
 end
 
 local function sendMessageToMonitor()
-
     while true do
         local now = os.epoch("utc")
 
         -- 1. Prüfe Chunks auf Timeout
-        if now - chunkLastCheck >= chunkTimeout then
+        if now - chunkLastCheck >= masterConfig.chunkTimeout then
             chunkLastCheck = now
-            for _, chunk in ipairs(globalData.chunks) do
-                if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > chunkTimeout then
+            for _, chunk in ipairs(masterConfig.chunks) do
+                if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > masterConfig.chunkTimeout then
                     log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
                     chunk.workedByTurtleName = nil
                     chunk.chunkLastUpdate = nil
@@ -269,15 +77,15 @@ local function sendMessageToMonitor()
         end
 
         -- 2. Prüfe Turtles auf Timeout
-        if now - turtleLastCheck >= turtleTimeout then
+        if now - turtleLastCheck >= masterConfig.turtleTimeout then
             turtleLastCheck = now
-            for name, t in pairs(globalData.turtles) do
+            for name, t in pairs(masterConfig.turtles) do
                 local last = t.lastUpdate or 0
-                if now - last > turtleTimeout then
-                    globalData.turtles[name].status = "offline"
-                    saveGlobalData(globalData)
+                if now - last > masterConfig.turtleTimeout then
+                    masterConfig.turtles[name].status = "offline"
                 end
             end
+            masterConfig:saveState(STATE_PATH)
         end
 
         local id, msg = rednet.receive("MT")
@@ -286,38 +94,33 @@ local function sendMessageToMonitor()
             log:logDebug("Master", "Received message: " .. (textutils.serialize(message) or "<nil>"))
 
             if message.type == "newConnection" then
-                if message.turtleName == nil then
-                    message.turtleName = getNewTurtleName()
-                end
+                local turtleName = message.turtleName or getNewTurtleName()
 
-                -- turtle registry
-                globalData.turtles[message.turtleName] = {
-                    turtleName = message.turtleName,
+                -- Turtle registrieren
+                masterConfig.turtles[turtleName] = {
+                    turtleName = turtleName,
                     coordinates = message.coordinates,
                     direction = message.direction,
-                    lastUpdate = now
+                    lastUpdate = now,
+                    status = "online"
                 }
 
-                -- chunk data separat
-                local chunk = findChunk(message.turtleName)
-                
+                -- Chunk zuweisen
+                local chunk = masterConfig:findChunk(turtleName)
 
-                -- Antwortdaten generieren
-                local reply = {
-                    turtleName = message.turtleName,
-                    chestCoordinates = globalData.chestCoordinates,
-                    chunkNumber = chunk.chunkNumber,
-                    chunkCoordinates = chunk.chunkCoordinates,
-                }
+                -- Payload für Turtle bauen
+                local payload = masterConfig:buildTurtleConfig(turtleName, chunk.chunkNumber)
 
                 log:logDebug("Master",
-                    "Assigned to chunk " .. reply.chunkNumber .. " at X:" .. reply.chestCoordinates.x .. " Y:" ..
-                        reply.chestCoordinates.y .. " Z:" .. reply.chestCoordinates.z)
+                    "Assigned turtle " .. turtleName .. " to chunk " .. chunk.chunkNumber .. " at X:" ..
+                        payload.chestCoordinates.x .. " Y:" .. payload.chestCoordinates.y .. " Z:" ..
+                        payload.chestCoordinates.z)
 
-                log:logDebug("Master", "Turtle name is " .. reply.turtleName)
+                -- Antwort senden
+                rednet.send(id, textutils.serialize(payload), "C")
 
-                rednet.send(id, textutils.serialize(reply), "C")
-                saveGlobalData(globalData)
+                -- Zustand speichern
+                masterConfig:saveState(STATE_PATH)
             end
         end
 
@@ -328,7 +131,7 @@ local function sendMessageToMonitor()
 
         -- Turtles als Array sammeln
         local turtlesSorted = {}
-        for _, t in pairs(globalData.turtles) do
+        for _, t in pairs(masterConfig.turtles) do
             table.insert(turtlesSorted, t)
         end
 
@@ -337,6 +140,7 @@ local function sendMessageToMonitor()
             return turtleNumber(a.turtleName) < turtleNumber(b.turtleName)
         end)
 
+        -- Monitor aktualisieren
         mon.clear()
         local row = 1
         for _, t in ipairs(turtlesSorted) do
@@ -346,11 +150,7 @@ local function sendMessageToMonitor()
 
             mon.setCursorPos(1, row)
 
-            if (t.status == "offline") then
-                mon.setTextColour(colors.red)
-            else
-                mon.setTextColour(colors.white)
-            end
+            mon.setTextColour(t.status == "offline" and colors.red or colors.white)
 
             local name = monitor.padLeft(t.turtleName, 4)
             local x = monitor.padRight(t.coordinates and t.coordinates.x or "?", 4)
@@ -366,7 +166,6 @@ local function sendMessageToMonitor()
 
             row = row + 1
         end
-
     end
 end
 
@@ -374,8 +173,11 @@ local function sendDebugInfo()
     log:logDebug("Master", "Master is running.")
 end
 
-sendMessageToMonitor()
-while true do
-    parallel.waitForAll(sendMessageToMonitor, sendDebugInfo)
-    sleep(1)
+local function sendDebugLoop()
+    while true do
+        sendDebugInfo()
+        sleep(1)
+    end
 end
+
+parallel.waitForAll(sendMessageToMonitor, sendDebugLoop)
