@@ -1,3 +1,5 @@
+local logger = require("helper.logger")
+local log = logger.new()
 local MasterConfig = {}
 MasterConfig.__index = MasterConfig
 local STATE_PATH = "globalData.txt"
