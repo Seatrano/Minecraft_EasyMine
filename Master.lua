@@ -110,17 +110,26 @@ local function sendMessageToMonitor()
 
                 -- Payload für Turtle bauen
                 local payload = masterConfig:buildTurtleConfig(turtleName, chunk.chunkNumber)
-
-                log:logDebug("Master",
-                    "Assigned turtle " .. turtleName .. " to chunk " .. chunk.chunkNumber .. " at X:" ..
-                        payload.chestCoordinates.x .. " Y:" .. payload.chestCoordinates.y .. " Z:" ..
-                        payload.chestCoordinates.z)
-
-                -- Antwort senden
                 rednet.send(id, textutils.serialize(payload), "C")
 
-                -- Zustand speichern
                 masterConfig:saveState(STATE_PATH)
+
+            elseif message.type == "update" then
+                local tName = message.turtleName
+                if masterConfig.turtles[tName] then
+                    -- Koordinaten, Richtung, Fuel, Status aktualisieren
+                    masterConfig.turtles[tName].coordinates = message.coordinates
+                    masterConfig.turtles[tName].direction = message.direction
+                    masterConfig.turtles[tName].fuelLevel = message.fuelLevel
+                    masterConfig.turtles[tName].status = message.status
+                    masterConfig.turtles[tName].chunkNumber = message.chunkNumber
+                    masterConfig.turtles[tName].lastUpdate = os.epoch("utc")
+
+                    log:logDebug("Master", "Updated turtle " .. tName .. " at chunk " .. message.chunkNumber)
+                    masterConfig:saveState(STATE_PATH)
+                else
+                    log:logDebug("Master", "Received update for unknown turtle: " .. tName)
+                end
             end
         end
 

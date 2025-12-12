@@ -4,16 +4,6 @@ local logger = require("helper.logger")
 local log = logger.new()
 finder:openModem()
 
-local trash = {
-    ["minecraft:cobblestone"] = true,
-    ["minecraft:dirt"] = true,
-    ["minecraft:andesite"] = true,
-    ["minecraft:diorite"] = true,
-    ["create:limestone_cobblestone"] = true,
-    ["minecraft:gravel"] = true,
-    ["minecraft:granite"] = true,
-    ["minecraft:cobbled_deepslate"] = true
-}
 
 local computerId = os.getComputerID()
 local turtleName = os.getComputerLabel()
@@ -531,12 +521,6 @@ local function connectToMaster()
             startCoords.z = dataReceived.chunkCoordinates.startZ
             startCoords.y = dataReceived.currentChunkDepth
             startCoords.direction = dataReceived.startDirection or 1  -- Default North
-
-            -- Optional: Endkoordinaten speichern, falls benötigt
-            endCoords = {
-                x = dataReceived.chunkCoordinates.endX,
-                z = dataReceived.chunkCoordinates.endZ
-            }
 
             -- Chest-Koordinaten
             chestCoords.x = dataReceived.chestCoordinates.x
