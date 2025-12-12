@@ -114,7 +114,7 @@ local function sendMessageToMonitor()
 
                 masterConfig:saveState(STATE_PATH)
 
-            elseif message.type == "update" then
+            elseif message.type == "update"  and message.turtleName ~= nil then
                 local tName = message.turtleName
                 if masterConfig.turtles[tName] then
                     -- Koordinaten, Richtung, Fuel, Status aktualisieren
