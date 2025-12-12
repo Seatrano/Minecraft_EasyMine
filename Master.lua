@@ -11,8 +11,8 @@ local masterConfig = MasterConfig:new()
 local CONFIG_PATH = "/config/config.lua"
 local STATE_PATH = "globalData.txt"
 if not masterConfig:loadConfig(CONFIG_PATH) then
-    print("No config found – creating default config")
-    config:saveConfig(CONFIG_PATH)
+    log:logDebug("Master", "No config found – creating default config")
+    masterConfig:saveConfig(CONFIG_PATH)
 end
 
 finder:openModem()
