@@ -10,8 +10,8 @@ function MasterConfig:new()
         -- static config
         chunkTimeout = 30000,
         turtleTimeout = 5000,
-        firstStartPoint = {x=0,y=0,z=0},
-        chestCoordinates = {x=0,y=0,z=0},
+        firstStartPoint = {x=448,y=74,z=64},
+        chestCoordinates = {x=448,y=75,z=64},
         maxDepth = -60,
 
         -- state
