@@ -516,6 +516,8 @@ local function connectToMaster()
                 turtleName = dataReceived.turtleName
             end
 
+            chunkNumber = dataReceived.chunkNumber
+
             -- Startkoordinaten vom Master übernehmen
             startCoords.x = dataReceived.chunkCoordinates.startX
             startCoords.z = dataReceived.chunkCoordinates.startZ
