@@ -530,6 +530,7 @@ local function connectToMaster()
             chestCoords.x = dataReceived.chestCoordinates.x
             chestCoords.y = dataReceived.chestCoordinates.y
             chestCoords.z = dataReceived.chestCoordinates.z
+            chestCoords.direction = dataReceived.chestCoordinates.direction
 
             -- Trash-Items
             trash = dataReceived.trash or {}
