@@ -222,7 +222,7 @@ function MasterConfig:buildTurtleConfig(turtleName, chunkNumber)
     return {
         type = "config",
         turtleName = turtleName,
-        chunkNumber = chunkNumber,
+        chunkNumber = chunk.chunkNumber,
         chunkCoordinates = { 
             startX = chunk.chunkCoordinates.startX, 
             startZ = chunk.chunkCoordinates.startZ, 
