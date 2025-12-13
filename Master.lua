@@ -184,8 +184,8 @@ end
 
 local function sendDebugLoop()
     while true do
-        sendDebugInfo()
-        sleep(1)
+        -- sendDebugInfo()
+        sleep(100)
     end
 end
 
