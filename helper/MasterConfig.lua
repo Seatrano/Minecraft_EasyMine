@@ -2,7 +2,8 @@ local logger = require("helper.logger")
 local log = logger.new()
 local MasterConfig = {}
 MasterConfig.__index = MasterConfig
-local STATE_PATH = "globalData.txt"
+
+local configName = "masterConfig.txt"
 
 
 function MasterConfig:new()
@@ -37,21 +38,32 @@ function MasterConfig:new()
     return setmetatable(obj, MasterConfig)
 end
 
-function MasterConfig:saveConfig(path)
+function MasterConfig:save(path)
     local file = fs.open(path, "w")
     file.write(textutils.serialize({
-        version = self.version,
-        chunkTimeout = self.chunkTimeout,
-        turtleTimeout = self.turtleTimeout,
-        firstStartPoint = self.firstStartPoint,
-        chestCoordinates = self.chestCoordinates,
-        maxDepth = self.maxDepth
+        config = {
+            chunkTimeout = self.chunkTimeout,
+            turtleTimeout = self.turtleTimeout,
+            firstStartPoint = self.firstStartPoint,
+            chestCoordinates = self.chestCoordinates,
+            maxDepth = self.maxDepth,
+            trash = self.trash
+        },
+        state = {
+            startPoint = self.startPoint,
+            chunks = self.chunks,
+            turtles = self.turtles
+        }
     }))
     file.close()
 end
 
-function MasterConfig:loadConfig(path)
+function MasterConfig:load(path)
     if not fs.exists(path) then
+        -- echter First Start
+        self.startPoint = self.firstStartPoint
+        self.chunks = {}
+        self.turtles = {}
         return false
     end
 
@@ -61,22 +73,32 @@ function MasterConfig:loadConfig(path)
 
     if not data then return false end
 
-    self.chunkTimeout = data.chunkTimeout or self.chunkTimeout
-    self.turtleTimeout = data.turtleTimeout or self.turtleTimeout
-    self.firstStartPoint = data.firstStartPoint or self.firstStartPoint
-    self.chestCoordinates = data.chestCoordinates or self.chestCoordinates
-    self.maxDepth = data.maxDepth or self.maxDepth
+    local cfg = data.config or {}
+    local st  = data.state or {}
 
-    self.startPoint = self.firstStartPoint
+    -- Config
+    self.chunkTimeout = cfg.chunkTimeout or self.chunkTimeout
+    self.turtleTimeout = cfg.turtleTimeout or self.turtleTimeout
+    self.firstStartPoint = cfg.firstStartPoint or self.firstStartPoint
+    self.chestCoordinates = cfg.chestCoordinates or self.chestCoordinates
+    self.maxDepth = cfg.maxDepth or self.maxDepth
+    self.trash = cfg.trash or self.trash
+
+    -- State
+    self.startPoint = st.startPoint or self.firstStartPoint
+    self.chunks = st.chunks or {}
+    self.turtles = st.turtles or {}
+
     return true
 end
+
 
 function MasterConfig:findChunk(turtleName)
     local now = os.epoch("utc")
 
     -- Defaults setzen
     for i, chunk in ipairs(self.chunks) do
-        chunk.workedByTurtleName = chunk.workedByTurtleName or nil
+        chunk.workedByTurtleName = chunk.workedByTurtleName
         chunk.chunkLastUpdate = chunk.chunkLastUpdate or 0
         chunk.currentChunkDepth = chunk.currentChunkDepth or self.firstStartPoint.y
         chunk.chunkCoordinates = chunk.chunkCoordinates or self:getChunkCoordinates(i)
@@ -97,7 +119,7 @@ function MasterConfig:findChunk(turtleName)
             chunk.chunkLastUpdate = now
             log:logDebug("Master", "Assigning existing chunk " .. chunk.chunkNumber .. " to " .. turtleName)
 
-            self:saveState(STATE_PATH)
+            self:save(configName)
             return chunk
         end
     end
@@ -111,7 +133,7 @@ function MasterConfig:findChunk(turtleName)
         "No free chunk found. Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName
     )
 
-    self:saveState("globalData.txt")
+self:save(configName)
     return chunk
 end
 
@@ -180,40 +202,8 @@ function MasterConfig:getOrCreateChunk(n, turtleName)
     }
 
     self.chunks[n] = newChunk
-    self:saveState(STATE_PATH)
+    self:save(configName)
     return newChunk
-end
-
-
-function MasterConfig:saveState(path)
-    local file = fs.open(path, "w")
-    file.write(textutils.serialize({
-        startPoint = self.startPoint,
-        chunks = self.chunks,
-        turtles = self.turtles
-    }))
-    file.close()
-end
-
-function MasterConfig:loadState(path)
-    if not fs.exists(path) then
-        self.startPoint = self.firstStartPoint
-        self.chunks = {}
-        self.turtles = {}
-        return false
-    end
-
-    local file = fs.open(path, "r")
-    local data = textutils.unserialize(file.readAll())
-    file.close()
-
-    if not data then return false end
-
-    self.startPoint = data.startPoint or self.firstStartPoint
-    self.chunks = data.chunks or {}
-    self.turtles = data.turtles or {}
-
-    return true
 end
 
 

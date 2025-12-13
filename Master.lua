@@ -8,11 +8,11 @@ local MasterConfig = require("helper.MasterConfig")
 
 local masterConfig = MasterConfig:new()
 
-local CONFIG_PATH = "/config/config.lua"
-local STATE_PATH = "globalData.txt"
-if not masterConfig:loadConfig(CONFIG_PATH) then
-    log:logDebug("Master", "No config found – creating default config")
-    masterConfig:saveConfig(CONFIG_PATH)
+local configName = "masterConfig.txt"
+
+if not masterConfig:load(configName) then
+    log:logDebug("Master", "First start – creating initial config/state")
+    masterConfig:save(configName)
 end
 
 finder:openModem()
@@ -61,17 +61,23 @@ local function getNewTurtleName()
 end
 
 local function sendMessageToMonitor()
+
     while true do
         local now = os.epoch("utc")
 
         -- 1. Prüfe Chunks auf Timeout
+
         if now - chunkLastCheck >= masterConfig.chunkTimeout then
             chunkLastCheck = now
             for _, chunk in ipairs(masterConfig.chunks) do
-                if chunk.chunkLastUpdate and (now - chunk.chunkLastUpdate) > masterConfig.chunkTimeout then
+                if chunk.chunkLastUpdate ~= nil and chunk.chunkLastUpdate > 0 and (now - chunk.chunkLastUpdate) >
+                    masterConfig.chunkTimeout then
+
                     log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
+
                     chunk.workedByTurtleName = nil
-                    chunk.chunkLastUpdate = nil
+                    chunk.chunkLastUpdate = 0
+                    masterConfig:save(configName)
                 end
             end
         end
@@ -85,7 +91,7 @@ local function sendMessageToMonitor()
                     masterConfig.turtles[name].status = "offline"
                 end
             end
-            masterConfig:saveState(STATE_PATH)
+            masterConfig:save(configName)
         end
 
         local id, msg = rednet.receive("MT")
@@ -102,20 +108,20 @@ local function sendMessageToMonitor()
                     coordinates = message.coordinates,
                     direction = message.direction,
                     lastUpdate = now,
-                    status = "online",
+                    status = "online"
                 }
 
                 -- Chunk zuweisen
                 local chunk = masterConfig:findChunk(turtleName)
                 masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
-                
+
                 -- Payload für Turtle bauen
                 local payload = masterConfig:buildTurtleConfig(turtleName, chunk.chunkNumber)
                 rednet.send(id, textutils.serialize(payload), "C")
 
-                masterConfig:saveState(STATE_PATH)
+                masterConfig:save(configName)
 
-            elseif message.type == "update"  and message.turtleName ~= nil then
+            elseif message.type == "update" and message.turtleName ~= nil then
                 local tName = message.turtleName
                 if masterConfig.turtles[tName] then
                     -- Koordinaten, Richtung, Fuel, Status aktualisieren
@@ -127,7 +133,7 @@ local function sendMessageToMonitor()
                     masterConfig.turtles[tName].lastUpdate = os.epoch("utc")
 
                     log:logDebug("Master", "Updated turtle " .. tName .. " at chunk " .. message.chunkNumber)
-                    masterConfig:saveState(STATE_PATH)
+                    masterConfig:save(configName)
                 else
                     log:logDebug("Master", "Received update for unknown turtle: " .. tName)
                 end
