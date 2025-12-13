@@ -180,6 +180,7 @@ function MasterConfig:getOrCreateChunk(n, turtleName)
     }
 
     self.chunks[n] = newChunk
+    saveState(STATE_PATH)
     return newChunk
 end
 
