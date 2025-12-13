@@ -20,6 +20,8 @@ local startCoords = {
 
 local chestCoords = {}
 
+local trash = {}
+
 local function sleepForSeconds(seconds)
     for i = 1, seconds do
         print("Sleeping... " .. (seconds - i + 1) .. "s remaining")
@@ -528,6 +530,9 @@ local function connectToMaster()
             chestCoords.x = dataReceived.chestCoordinates.x
             chestCoords.y = dataReceived.chestCoordinates.y
             chestCoords.z = dataReceived.chestCoordinates.z
+
+            -- Trash-Items
+            trash = dataReceived.trash or {}
 
             -- Turtle zum Startpunkt bewegen
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
