@@ -102,12 +102,13 @@ local function sendMessageToMonitor()
                     coordinates = message.coordinates,
                     direction = message.direction,
                     lastUpdate = now,
-                    status = "online"
+                    status = "online",
                 }
 
                 -- Chunk zuweisen
                 local chunk = masterConfig:findChunk(turtleName)
-
+                masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
+                
                 -- Payload für Turtle bauen
                 local payload = masterConfig:buildTurtleConfig(turtleName, chunk.chunkNumber)
                 rednet.send(id, textutils.serialize(payload), "C")
