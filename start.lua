@@ -22,6 +22,7 @@ if not selection or selection == "" then
     print("2) Master")
     print("3) Slave")
     print("4) Debug")
+    print("5) Command Center")
 
     write("Enter number: ")
     local choice = read()
@@ -34,6 +35,8 @@ if not selection or selection == "" then
         selection = "Slave"
     elseif choice == "4" then
         selection = "Debug"
+    elseif choice == "5" then
+        selection = "CommandCenter"
     else
         error("Invalid selection.")
     end
@@ -135,10 +138,17 @@ elseif selection == "Slave" then
     downloadFile("Slave.lua")
     updateHelpers()
     shell.run("Slave.lua")
+    
 elseif selection == "Debug" then
     downloadFile("Debug.lua")
     updateHelpers()
     shell.run("Debug.lua")
+    
+elseif selection == "CommandCenter" then
+    downloadFile("CommandCenter.lua")
+    updateHelpers()
+    shell.run("CommandCenter.lua")
+    
 else
     error("Unknown selection: " .. selection)
 end
