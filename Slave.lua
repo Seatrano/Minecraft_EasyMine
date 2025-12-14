@@ -21,6 +21,10 @@ local startCoords = {
 local chestCoords = {}
 local trash = {}
 
+-- BEFEHLSSYSTEM
+local currentCommand = nil
+local commandHandled = false
+
 local function sleepForSeconds(seconds)
     for i = 1, seconds do
         print("Sleeping... " .. (seconds - i + 1) .. "s remaining")
@@ -662,10 +666,148 @@ local function updateForComputer(height)
     rednet.broadcast(textutils.serialize(data), "MT")
 end
 
+-- ============================================================================
+-- BEFEHLSSYSTEM
+-- ============================================================================
+
+-- Lauscht kontinuierlich auf Befehle vom Master
+local function commandListener()
+    while true do
+        local id, msg = rednet.receive("TURTLE_CMD", 0.5)
+        if msg then
+            local success, message = pcall(textutils.unserialize, msg)
+            if success and message.type == "command" then
+                currentCommand = message.command
+                commandHandled = false
+                log:logDebug(turtleName, "Received command: " .. message.command)
+                print(">>> COMMAND RECEIVED: " .. message.command .. " <<<")
+            end
+        end
+        os.sleep(0.1)
+    end
+end
+
+-- Führt den aktuellen Befehl aus
+local function executeCommand()
+    if not currentCommand or commandHandled then
+        return false
+    end
+    
+    print("Executing command: " .. currentCommand)
+    status = "Command: " .. currentCommand
+    sendMessage()
+    
+    if currentCommand == "returnToBase" then
+        status = "Returning to Base"
+        sendMessage()
+        
+        -- Gehe zur Chest (eine Position darunter)
+        local baseX = chestCoords.x
+        local baseY = chestCoords.y - 1
+        local baseZ = chestCoords.z
+        local baseDir = chestCoords.direction
+        
+        log:logDebug(turtleName, "Going to base at X:" .. baseX .. " Y:" .. baseY .. " Z:" .. baseZ)
+        goToPosition(baseX, baseY, baseZ, baseDir)
+        
+        status = "At Base"
+        sendMessage()
+        print("Arrived at base. Waiting for further commands...")
+        
+        -- Warte auf Resume-Befehl
+        while currentCommand == "returnToBase" do
+            os.sleep(1)
+        end
+        
+    elseif currentCommand == "resumeMining" then
+        status = "Resuming Mining"
+        sendMessage()
+        print("Resuming mining operations...")
+        
+        -- Gehe zurück zur letzten Mining-Position
+        goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
+        
+    elseif currentCommand == "pauseMining" then
+        status = "Paused"
+        sendMessage()
+        print("Mining paused. Waiting for resume command...")
+        
+        -- Warte auf Resume
+        while currentCommand == "pauseMining" do
+            os.sleep(1)
+        end
+        
+    elseif currentCommand == "emergencyStop" then
+        status = "Emergency Stop"
+        sendMessage()
+        print("EMERGENCY STOP activated!")
+        
+        -- Stoppe alle Operationen
+        while currentCommand == "emergencyStop" do
+            os.sleep(1)
+        end
+        
+    elseif currentCommand == "refuelAll" then
+        status = "Refueling"
+        sendMessage()
+        refuel()
+        status = "Refueled"
+        sendMessage()
+        
+    elseif currentCommand == "unloadAll" then
+        status = "Unloading Inventory"
+        sendMessage()
+        
+        local x, y, z, dir = currentX, currentY, currentZ, direction
+        goToPosition(chestCoords.x, chestCoords.y - 1, chestCoords.z, chestCoords.direction)
+        unload()
+        turnLeft()
+        turnLeft()
+        goToPosition(x, y, z, dir)
+        
+        status = "Inventory Unloaded"
+        sendMessage()
+        
+    elseif currentCommand == "statusReport" then
+        status = "Reporting Status"
+        sendMessage()
+        
+        print("Status Report:")
+        print("  Position: X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
+        print("  Direction: " .. directionToString(direction))
+        print("  Fuel: " .. turtle.getFuelLevel())
+        print("  Chunk: " .. chunkNumber)
+        
+        status = "Online"
+        sendMessage()
+    end
+    
+    commandHandled = true
+    currentCommand = nil
+    return true
+end
+
+-- Prüft ob ein Befehl ausgeführt werden muss
+local function checkForCommands()
+    if currentCommand and not commandHandled then
+        return executeCommand()
+    end
+    return false
+end
+
 local function mineStrip(length)
     for i = 1, length do
+        -- Prüfe auf Befehle vor jedem Schritt
+        if checkForCommands() then
+            -- Befehl wurde ausgeführt, setze fort
+            if currentCommand == "pauseMining" or currentCommand == "emergencyStop" then
+                return false -- Mining unterbrochen
+            end
+        end
+        
         status = "Mining"
         sendMessage()
+        
         if isInventoryFull() then
             refuel()
             local x, y, z, dir = currentX, currentY, currentZ, direction
@@ -683,11 +825,21 @@ local function mineStrip(length)
         safeDigUp()
         safeDigDown()
     end
+    return true
 end
 
 local function mineTripleLayer(length, width)
     for x = 1, length do
-        mineStrip(width - 1)
+        -- Prüfe auf Befehle
+        if checkForCommands() then
+            if currentCommand == "pauseMining" or currentCommand == "emergencyStop" then
+                return false
+            end
+        end
+        
+        if not mineStrip(width - 1) then
+            return false -- Unterbrochen
+        end
 
         if x < length then
             if x % 2 == 1 then
@@ -711,14 +863,27 @@ local function mineTripleLayer(length, width)
     end
 
     goToPosition(startCoords.x, currentY, startCoords.z, 2)
+    return true
 end
 
 local function quarry(length, width, height, startDirection)
     local layers = math.ceil(height / 3)
 
     for i = 1, layers do
+        -- Prüfe auf Befehle vor jeder Layer
+        if checkForCommands() then
+            if currentCommand == "pauseMining" or currentCommand == "emergencyStop" then
+                print("Mining interrupted by command")
+                return false
+            end
+        end
+        
         updateForComputer(currentY)
-        mineTripleLayer(length, width)
+        
+        if not mineTripleLayer(length, width) then
+            print("Layer interrupted")
+            return false
+        end
 
         if i < layers then
             for d = 1, 3 do
@@ -728,6 +893,7 @@ local function quarry(length, width, height, startDirection)
             end
         end
     end
+    return true
 end
 
 -- ============================================================================
@@ -750,11 +916,35 @@ if currentX and currentY and currentZ and direction then
     print("Starting at X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ,
         "facing direction:" .. directionToString(direction))
 
-    while true do
-        connectToMaster()
-        sleepForSeconds(3)
-        quarry(16, 16, startCoords.y, direction)
-    end
+    -- Haupt-Loop mit parallelem Command-Listening
+    parallel.waitForAny(
+        -- Command Listener läuft kontinuierlich
+        commandListener,
+        
+        -- Mining-Loop
+        function()
+            while true do
+                connectToMaster()
+                sleepForSeconds(3)
+                
+                -- Starte Mining
+                print("Starting quarry operation...")
+                local success = quarry(16, 16, startCoords.y, direction)
+                
+                if not success then
+                    print("Quarry interrupted. Waiting for resume...")
+                    -- Warte bis Resume-Befehl kommt
+                    while currentCommand == "pauseMining" or currentCommand == "emergencyStop" or currentCommand == "returnToBase" do
+                        os.sleep(1)
+                    end
+                end
+                
+                -- Chunk fertig - neuen anfordern
+                print("Chunk completed. Requesting new chunk...")
+                sleep(2)
+            end
+        end
+    )
 
 else
     print("Could not determine initial position or direction. Aborting.")
