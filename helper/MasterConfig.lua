@@ -204,82 +204,85 @@ function MasterConfig:validateChunks()
             chunk.startDirection = 2
         end
     end
+    
+    -- PRÜFE AUF DOPPELTE CHUNK-ZUWEISUNGEN
+    self:checkForDuplicateAssignments()
 end
 
-function MasterConfig:isChunkOccupied(chunkNumber, excludeTurtle)
-    -- Prüfe, ob irgendeine ANDERE aktive Turtle an diesem Chunk arbeitet
-    for name, turtle in pairs(self.turtles) do
-        if name ~= excludeTurtle and turtle.chunkNumber == chunkNumber then
-            -- Prüfe, ob diese Turtle noch aktiv ist (nicht timed out)
-            local lastUpdate = turtle.lastUpdate or 0
-            local now = os.epoch("utc")
-            if now - lastUpdate < self.turtleTimeout then
-                log:logDebug("Master", "Chunk " .. chunkNumber .. " is occupied by active turtle: " .. name)
-                return true, name
+function MasterConfig:checkForDuplicateAssignments()
+    local chunkAssignments = {} -- chunkNumber -> {turtleName1, turtleName2, ...}
+    
+    -- Sammle alle Zuweisungen
+    for turtleName, turtle in pairs(self.turtles) do
+        if turtle.chunkNumber then
+            if not chunkAssignments[turtle.chunkNumber] then
+                chunkAssignments[turtle.chunkNumber] = {}
+            end
+            table.insert(chunkAssignments[turtle.chunkNumber], turtleName)
+        end
+    end
+    
+    -- Prüfe auf Duplikate
+    for chunkNum, turtles in pairs(chunkAssignments) do
+        if #turtles > 1 then
+            log:logDebug("Master", "WARNING: Chunk " .. chunkNum .. " assigned to multiple turtles:")
+            for _, tName in ipairs(turtles) do
+                log:logDebug("Master", "  - " .. tName)
+            end
+            
+            -- Reparatur: Nur die erste Turtle behält den Chunk
+            for i = 2, #turtles do
+                local tName = turtles[i]
+                log:logDebug("Master", "Removing chunk " .. chunkNum .. " from " .. tName)
+                self.turtles[tName].chunkNumber = nil
+                self.turtles[tName].status = "needs_reassignment"
+            end
+            
+            -- Chunk-Status korrigieren
+            if self.chunks[chunkNum] then
+                self.chunks[chunkNum].workedByTurtleName = turtles[1]
             end
         end
     end
-    return false, nil
 end
 
 function MasterConfig:findChunk(turtleName)
     local now = os.epoch("utc")
 
-    -- SCHRITT 1: Hat diese Turtle bereits einen zugewiesenen Chunk?
+    log:logDebug("Master", "Finding chunk for " .. turtleName)
+
+    -- Prüfe zuerst, ob die Turtle bereits einen Chunk hat
     if self.turtles[turtleName] and self.turtles[turtleName].chunkNumber then
         local existingChunkNum = self.turtles[turtleName].chunkNumber
         local existingChunk = self.chunks[existingChunkNum]
         
         if existingChunk and existingChunk.currentChunkDepth > self.maxDepth then
-            -- Chunk ist noch nicht fertig
-            local isOccupied, occupyingTurtle = self:isChunkOccupied(existingChunkNum, turtleName)
-            
-            if not isOccupied then
-                -- Chunk ist frei oder gehört dieser Turtle
+            -- Chunk ist noch nicht fertig und kann weiterbearbeitet werden
+            if existingChunk.workedByTurtleName == turtleName or existingChunk.workedByTurtleName == nil then
                 existingChunk.workedByTurtleName = turtleName
                 existingChunk.chunkLastUpdate = now
                 log:logDebug("Master", "Reassigning existing chunk " .. existingChunkNum .. " to " .. turtleName)
                 return existingChunk
-            else
-                -- Chunk ist von anderer Turtle besetzt - alte Zuweisung ungültig
-                log:logDebug("Master", "Turtle " .. turtleName .. "'s old chunk " .. existingChunkNum .. " is now occupied by " .. occupyingTurtle)
-                self.turtles[turtleName].chunkNumber = nil
             end
         end
     end
 
-    -- SCHRITT 2: Suche nach einem wirklich freien, unfertigen Chunk
+    -- Suche nach einem freien, unfertigen Chunk
     for i, chunk in ipairs(self.chunks) do
-        if chunk.currentChunkDepth > self.maxDepth then
-            -- Chunk ist noch nicht fertig - prüfe ob er frei ist
-            local isOccupied, occupyingTurtle = self:isChunkOccupied(i, turtleName)
-            
-            if not isOccupied then
-                -- Doppelte Prüfung: Ist workedByTurtleName leer ODER timed out?
-                local isFree = true
-                if chunk.workedByTurtleName and chunk.workedByTurtleName ~= "" then
-                    -- Prüfe ob die zugewiesene Turtle noch aktiv ist
-                    if self.turtles[chunk.workedByTurtleName] then
-                        local lastUpdate = self.turtles[chunk.workedByTurtleName].lastUpdate or 0
-                        if now - lastUpdate < self.turtleTimeout then
-                            isFree = false -- Chunk ist noch aktiv belegt
-                        end
-                    end
-                end
-                
-                if isFree then
-                    chunk.workedByTurtleName = turtleName
-                    chunk.chunkLastUpdate = now
-                    log:logDebug("Master", "Assigning free chunk " .. chunk.chunkNumber .. " to " .. turtleName)
-                    return chunk
-                else
-                    log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " appears free but is still assigned to " .. chunk.workedByTurtleName)
-                end
-            end
+        -- DOPPELTE PRÜFUNG: Chunk muss unfertig UND frei sein
+        local isFree = (chunk.workedByTurtleName == nil or chunk.workedByTurtleName == "")
+        local isUnfinished = chunk.currentChunkDepth > self.maxDepth
+        
+        if isUnfinished and isFree then
+            -- WICHTIG: Sofort als belegt markieren
+            chunk.workedByTurtleName = turtleName
+            chunk.chunkLastUpdate = now
+            log:logDebug("Master", "Assigning free chunk " .. chunk.chunkNumber .. " to " .. turtleName .. " (was free)")
+            return chunk
         end
     end
 
-    -- SCHRITT 3: Keiner frei → neuen Chunk erzeugen
+    -- Keiner frei → neuen Chunk erzeugen
     local newIndex = #self.chunks + 1
     local chunk = self:createChunk(newIndex, turtleName)
 
