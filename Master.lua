@@ -60,13 +60,18 @@ local function getNewTurtleName()
     return "MT" .. (maxNumber + 1)
 end
 
+local function sendConfigToTurtle(id, turtleName, chunkNumber)
+    local payload = masterConfig:buildTurtleConfig(turtleName, chunkNumber)
+    rednet.send(id, textutils.serialize(payload), "C")
+    log:logDebug("Master", "Sent config to " .. turtleName .. " for chunk " .. chunkNumber)
+end
+
 local function sendMessageToMonitor()
 
     while true do
         local now = os.epoch("utc")
 
         -- 1. Prüfe Chunks auf Timeout
-
         if now - chunkLastCheck >= masterConfig.chunkTimeout then
             chunkLastCheck = now
             for _, chunk in ipairs(masterConfig.chunks) do
@@ -74,6 +79,11 @@ local function sendMessageToMonitor()
                     masterConfig.chunkTimeout then
 
                     log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
+
+                    -- Turtle auf offline setzen
+                    if chunk.workedByTurtleName and masterConfig.turtles[chunk.workedByTurtleName] then
+                        masterConfig.turtles[chunk.workedByTurtleName].status = "offline"
+                    end
 
                     chunk.workedByTurtleName = nil
                     chunk.chunkLastUpdate = 0
@@ -94,48 +104,97 @@ local function sendMessageToMonitor()
             masterConfig:save(configName)
         end
 
-        local id, msg = rednet.receive("MT")
+        local id, msg = rednet.receive("MT", 0.1)
         if msg and id ~= computerId then
-            local message = textutils.unserialize(msg)
-            log:logDebug("Master", "Received message: " .. (textutils.serialize(message) or "<nil>"))
+            local success, message = pcall(textutils.unserialize, msg)
+            
+            if not success then
+                log:logDebug("Master", "Failed to deserialize message from ID " .. id)
+            else
+                log:logDebug("Master", "Received message type: " .. (message.type or "unknown"))
 
-            if message.type == "newConnection" then
-                local turtleName = message.turtleName or getNewTurtleName()
+                if message.type == "newConnection" then
+                    local turtleName = message.turtleName or getNewTurtleName()
 
-                -- Turtle registrieren
-                masterConfig.turtles[turtleName] = {
-                    turtleName = turtleName,
-                    coordinates = message.coordinates,
-                    direction = message.direction,
-                    lastUpdate = now,
-                    status = "online"
-                }
+                    -- Turtle registrieren oder reaktivieren
+                    if not masterConfig.turtles[turtleName] then
+                        masterConfig.turtles[turtleName] = {}
+                    end
+                    
+                    masterConfig.turtles[turtleName].turtleName = turtleName
+                    masterConfig.turtles[turtleName].coordinates = message.coordinates
+                    masterConfig.turtles[turtleName].direction = message.direction
+                    masterConfig.turtles[turtleName].lastUpdate = now
+                    masterConfig.turtles[turtleName].status = "connecting"
 
-                -- Chunk zuweisen
-                local chunk = masterConfig:findChunk(turtleName)
-                masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
+                    -- Chunk zuweisen
+                    local chunk = masterConfig:findChunk(turtleName)
+                    masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
 
-                -- Payload für Turtle bauen
-                local payload = masterConfig:buildTurtleConfig(turtleName, chunk.chunkNumber)
-                rednet.send(id, textutils.serialize(payload), "C")
+                    -- Konfiguration senden
+                    sendConfigToTurtle(id, turtleName, chunk.chunkNumber)
 
-                masterConfig:save(configName)
-
-            elseif message.type == "update" and message.turtleName ~= nil then
-                local tName = message.turtleName
-                if masterConfig.turtles[tName] then
-                    -- Koordinaten, Richtung, Fuel, Status aktualisieren
-                    masterConfig.turtles[tName].coordinates = message.coordinates
-                    masterConfig.turtles[tName].direction = message.direction
-                    masterConfig.turtles[tName].fuelLevel = message.fuelLevel
-                    masterConfig.turtles[tName].status = message.status
-                    masterConfig.turtles[tName].chunkNumber = message.chunkNumber
-                    masterConfig.turtles[tName].lastUpdate = os.epoch("utc")
-
-                    log:logDebug("Master", "Updated turtle " .. tName .. " at chunk " .. message.chunkNumber)
                     masterConfig:save(configName)
-                else
-                    log:logDebug("Master", "Received update for unknown turtle: " .. tName)
+
+                elseif message.type == "update" and message.turtleName ~= nil then
+                    local tName = message.turtleName
+                    
+                    if not masterConfig.turtles[tName] then
+                        -- Unbekannte Turtle - als neue Connection behandeln
+                        log:logDebug("Master", "Unknown turtle " .. tName .. " - treating as new connection")
+                        
+                        masterConfig.turtles[tName] = {
+                            turtleName = tName,
+                            coordinates = message.coordinates,
+                            direction = message.direction,
+                            fuelLevel = message.fuelLevel,
+                            status = "reconnecting",
+                            chunkNumber = message.chunkNumber,
+                            lastUpdate = now
+                        }
+                        
+                        -- Chunk prüfen und ggf. neu zuweisen
+                        local chunk = masterConfig:findChunk(tName)
+                        masterConfig.turtles[tName].chunkNumber = chunk.chunkNumber
+                        
+                        sendConfigToTurtle(id, tName, chunk.chunkNumber)
+                    else
+                        -- Bekannte Turtle - Update verarbeiten
+                        masterConfig.turtles[tName].coordinates = message.coordinates
+                        masterConfig.turtles[tName].direction = message.direction
+                        masterConfig.turtles[tName].fuelLevel = message.fuelLevel
+                        masterConfig.turtles[tName].status = message.status
+                        masterConfig.turtles[tName].lastUpdate = now
+                        
+                        -- Chunk-Update
+                        if message.chunkNumber and masterConfig.turtles[tName].chunkNumber ~= message.chunkNumber then
+                            masterConfig.turtles[tName].chunkNumber = message.chunkNumber
+                        end
+                        
+                        -- Chunk-LastUpdate aktualisieren
+                        local chunkNum = masterConfig.turtles[tName].chunkNumber
+                        if chunkNum and masterConfig.chunks[chunkNum] then
+                            masterConfig.chunks[chunkNum].chunkLastUpdate = now
+                        end
+                    end
+                    
+                    masterConfig:save(configName)
+
+                elseif message.type == "updateLayer" and message.turtleName ~= nil then
+                    -- NEUER HANDLER für Layer-Updates
+                    local tName = message.turtleName
+                    local height = message.height
+                    local chunkNum = message.chunkNumber
+                    
+                    if masterConfig.turtles[tName] and masterConfig.chunks[chunkNum] then
+                        masterConfig.chunks[chunkNum].currentChunkDepth = height
+                        masterConfig.chunks[chunkNum].chunkLastUpdate = now
+                        
+                        log:logDebug("Master", "Updated chunk " .. chunkNum .. " depth to " .. height)
+                        masterConfig:save(configName)
+                    else
+                        log:logDebug("Master", "Received updateLayer from unknown turtle/chunk: " .. tName)
+                    end
                 end
             end
         end
@@ -174,7 +233,7 @@ local function sendMessageToMonitor()
             local z = monitor.padRight(t.coordinates and t.coordinates.z or "?", 4)
             local dirStr = monitor.padLeft(directionToString(t.direction), 6)
             local fuel = monitor.padRight(t.fuelLevel or "?", 5)
-            local status = monitor.padLeft(t.status or "?", 10)
+            local status = monitor.padLeft(t.status or "?", 12)
             local chunk = monitor.padRight(t.chunkNumber or "?", 3)
 
             mon.write(name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel ..
@@ -185,13 +244,8 @@ local function sendMessageToMonitor()
     end
 end
 
-local function sendDebugInfo()
-    log:logDebug("Master", "Master is running.")
-end
-
 local function sendDebugLoop()
     while true do
-        -- sendDebugInfo()
         sleep(100)
     end
 end
