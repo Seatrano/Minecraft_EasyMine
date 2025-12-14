@@ -19,7 +19,6 @@ local startCoords = {
 }
 
 local chestCoords = {}
-
 local trash = {}
 
 local function sleepForSeconds(seconds)
@@ -30,7 +29,7 @@ local function sleepForSeconds(seconds)
 end
 
 local function getGPS(timeout)
-    timeout = timeout or 5 -- Sekunden für gps.locate()
+    timeout = timeout or 5
 
     while true do
         local x, y, z = gps.locate(timeout)
@@ -73,7 +72,6 @@ local function dropTrash()
 end
 
 local function sortInventory()
-    -- 1) Stacks zusammenführen
     for i = 1, 16 do
         local itemI = turtle.getItemDetail(i)
         if itemI then
@@ -87,11 +85,8 @@ local function sortInventory()
         end
     end
 
-    -- 2) Leere Slots nach hinten schieben
-    -- Wir gehen von vorne nach hinten und holen das nächste Item von hinten nach vorne
     for i = 1, 16 do
         if turtle.getItemCount(i) == 0 then
-            -- Suche nächstes Item hinter diesem Slot
             for j = i + 1, 16 do
                 if turtle.getItemCount(j) > 0 then
                     turtle.select(j)
@@ -105,7 +100,6 @@ local function sortInventory()
     turtle.select(1)
 end
 
--- Prüft, ob Inventory voll ist, sortiert Items und schmeißt Trash weg
 local function isInventoryFull()
     for i = 1, 16 do
         if turtle.getItemCount(i) == 0 then
@@ -113,7 +107,6 @@ local function isInventoryFull()
         end
     end
 
-    -- inventory ist voll -> sortieren und trash droppen
     sortInventory()
     dropTrash()
 
@@ -140,18 +133,16 @@ local function directionToString(dir)
     end
 end
 
--- Dreht die Turtle nach rechts und aktualisiert currentDir
 local function turnRight()
     turtle.turnRight()
     sendMessage()
-    direction = (direction % 4) + 1 -- Nord(1)->Ost(2)->Süd(3)->West(4)->Nord(1)
+    direction = (direction % 4) + 1
 end
 
--- Dreht die Turtle nach links und aktualisiert currentDir
 local function turnLeft()
     turtle.turnLeft()
     sendMessage()
-    direction = (direction - 2) % 4 + 1 -- Nord(1)->West(4)->Süd(3)->Ost(2)->Nord(1)
+    direction = (direction - 2) % 4 + 1
 end
 
 local function turnTo(targetDir)
@@ -167,6 +158,10 @@ local function turnTo(targetDir)
     sendMessage()
     direction = targetDir
 end
+
+-- ============================================================================
+-- SICHERE TURTLE-ERKENNUNG UND AUSWEICH-FUNKTIONEN
+-- ============================================================================
 
 local function isTurtleAhead()
     local success, data = turtle.inspect()
@@ -192,149 +187,249 @@ local function isTurtleDown()
     return false
 end
 
-local function avoidTurtleByYAxis()
-    if direction == 1 or direction == 2 then
-        -- Ausweichen nach unten
-        while true do
-            if not isTurtleDown() then
-                if not turtle.down() then
-                    turtle.digDown()
-                else
-                    break
-                end
-            end
-            sleepForSeconds(1)
-        end
-
-        sleepForSeconds(3)
-
-        -- Ausweichen nach oben
-        while true do
-            if not isTurtleUp() then
-                if not turtle.up() then
-                    turtle.digUp()
-                else
-                    break
-                end
-            end
-            sleepForSeconds(1)
-        end
-    else
-        sleepForSeconds(1)
+-- SICHERE DIG-FUNKTIONEN: Niemals eine Turtle abbauen!
+local function safeDig()
+    if isTurtleAhead() then
+        return false -- Turtle im Weg - nicht abbauen!
     end
+    return turtle.dig()
 end
 
-local function avoidTurtleByForward()
-    if direction == 1 or direction == 2 then
-        while true do
-            if not isTurtleAhead() then
-                if not turtle.forward() then
-                    turtle.dig()
-                else
-                    break
-                end
-            end
-            sleepForSeconds(1)
-        end
-
-        sleepForSeconds(3)
-
-        -- Zurück ausweichen
-        while true do
-            if not isTurtleAhead() then
-                if not turtle.back() then
-
-                else
-                    break
-                end
-            end
-            sleepForSeconds(1)
-        end
-    else
-        sleepForSeconds(1)
+local function safeDigUp()
+    if isTurtleUp() then
+        return false -- Turtle im Weg - nicht abbauen!
     end
+    return turtle.digUp()
 end
+
+local function safeDigDown()
+    if isTurtleDown() then
+        return false -- Turtle im Weg - nicht abbauen!
+    end
+    return turtle.digDown()
+end
+
+-- Wartet bis der Weg frei ist
+local function waitForClearAhead(maxWait)
+    maxWait = maxWait or 30
+    local waited = 0
+    
+    while isTurtleAhead() and waited < maxWait do
+        status = "Waiting for Turtle"
+        sendMessage()
+        print("Turtle ahead detected, waiting...")
+        os.sleep(1)
+        waited = waited + 1
+    end
+    
+    return not isTurtleAhead()
+end
+
+local function waitForClearUp(maxWait)
+    maxWait = maxWait or 30
+    local waited = 0
+    
+    while isTurtleUp() and waited < maxWait do
+        status = "Waiting for Turtle"
+        sendMessage()
+        print("Turtle above detected, waiting...")
+        os.sleep(1)
+        waited = waited + 1
+    end
+    
+    return not isTurtleUp()
+end
+
+local function waitForClearDown(maxWait)
+    maxWait = maxWait or 30
+    local waited = 0
+    
+    while isTurtleDown() and waited < maxWait do
+        status = "Waiting for Turtle"
+        sendMessage()
+        print("Turtle below detected, waiting...")
+        os.sleep(1)
+        waited = waited + 1
+    end
+    
+    return not isTurtleDown()
+end
+
+-- Ausweich-Manöver: Versuche seitlich auszuweichen
+local function tryAvoidSideways()
+    print("Attempting sideways avoidance...")
+    
+    -- Versuche nach rechts
+    turnRight()
+    if not isTurtleAhead() then
+        if turtle.forward() then
+            os.sleep(2) -- Warte kurz
+            turnLeft()
+            if not isTurtleAhead() and turtle.forward() then
+                turnLeft()
+                if not isTurtleAhead() and turtle.forward() then
+                    turnRight()
+                    return true
+                end
+            end
+        end
+    end
+    turnLeft() -- Zurück zur ursprünglichen Richtung
+    
+    -- Versuche nach links
+    turnLeft()
+    if not isTurtleAhead() then
+        if turtle.forward() then
+            os.sleep(2)
+            turnRight()
+            if not isTurtleAhead() and turtle.forward() then
+                turnRight()
+                if not isTurtleAhead() and turtle.forward() then
+                    turnLeft()
+                    return true
+                end
+            end
+        end
+    end
+    turnRight() -- Zurück zur ursprünglichen Richtung
+    
+    return false
+end
+
+-- ============================================================================
+-- VERBESSERTE BEWEGUNGS-FUNKTIONEN
+-- ============================================================================
 
 local function up()
-    while true do
+    local attempts = 0
+    local maxAttempts = 60
+    
+    while attempts < maxAttempts do
         if isTurtleUp() then
-            avoidTurtleByForward()
-
+            print("Turtle above - waiting...")
+            if not waitForClearUp(10) then
+                -- Nach 10 Sekunden warten, versuche auszuweichen
+                if tryAvoidSideways() then
+                    attempts = 0 -- Reset nach erfolgreichem Ausweichen
+                end
+            end
         elseif turtle.detectUp() then
-            turtle.digUp()
+            safeDigUp()
         end
 
         if turtle.up() then
-            break
+            currentY = currentY + 1
+            sendMessage()
+            return true
         end
+        
+        attempts = attempts + 1
+        os.sleep(0.5)
     end
-
-    currentY = currentY + 1
-    sendMessage()
-    return true
+    
+    error("Could not move up after " .. maxAttempts .. " attempts")
 end
 
 local function down()
-    while true do
+    local attempts = 0
+    local maxAttempts = 60
+    
+    while attempts < maxAttempts do
         if isTurtleDown() then
-            avoidTurtleByForward()
-
+            print("Turtle below - waiting...")
+            if not waitForClearDown(10) then
+                if tryAvoidSideways() then
+                    attempts = 0
+                end
+            end
         elseif turtle.detectDown() then
-            turtle.digDown()
+            safeDigDown()
         end
 
         if turtle.down() then
-            break
+            currentY = currentY - 1
+            sendMessage()
+            return true
         end
+        
+        attempts = attempts + 1
+        os.sleep(0.5)
     end
-
-    currentY = currentY - 1
-    sendMessage()
-    return true
+    
+    error("Could not move down after " .. maxAttempts .. " attempts")
 end
 
 local function forward()
-
-    while true do
+    local attempts = 0
+    local maxAttempts = 60
+    
+    while attempts < maxAttempts do
         if isTurtleAhead() then
-            print("Turtle detected ahead, avoiding by Y axis")
-            avoidTurtleByYAxis()
-
+            print("Turtle ahead - waiting...")
+            if not waitForClearAhead(10) then
+                -- Versuche vertikales Ausweichen
+                print("Attempting vertical avoidance...")
+                if not isTurtleUp() and turtle.up() then
+                    currentY = currentY + 1
+                    sendMessage()
+                    os.sleep(2)
+                    if not isTurtleAhead() and turtle.forward() then
+                        -- Erfolgreich ausgewichen, gehe zurück runter
+                        if direction == 1 then currentZ = currentZ - 1
+                        elseif direction == 2 then currentX = currentX + 1
+                        elseif direction == 3 then currentZ = currentZ + 1
+                        elseif direction == 4 then currentX = currentX - 1 end
+                        sendMessage()
+                        
+                        if not isTurtleDown() and turtle.down() then
+                            currentY = currentY - 1
+                            sendMessage()
+                            return true
+                        end
+                    else
+                        -- Ausweichen fehlgeschlagen, zurück
+                        if not isTurtleDown() then
+                            turtle.down()
+                            currentY = currentY - 1
+                            sendMessage()
+                        end
+                    end
+                end
+                attempts = 0 -- Reset nach Ausweichversuch
+            end
         elseif turtle.detect() then
-            turtle.dig()
+            safeDig()
         end
 
         if turtle.forward() then
-            break
+            if direction == 1 then currentZ = currentZ - 1
+            elseif direction == 2 then currentX = currentX + 1
+            elseif direction == 3 then currentZ = currentZ + 1
+            elseif direction == 4 then currentX = currentX - 1 end
+            sendMessage()
+            return true
         end
+        
+        attempts = attempts + 1
+        os.sleep(0.5)
     end
-
-    if direction == 1 then
-        currentZ = currentZ - 1
-    elseif direction == 2 then
-        currentX = currentX + 1
-    elseif direction == 3 then
-        currentZ = currentZ + 1
-    elseif direction == 4 then
-        currentX = currentX - 1
-    end
-    sendMessage()
-    return true
+    
+    error("Could not move forward after " .. maxAttempts .. " attempts")
 end
 
--- Richtungscode:
--- 1 = North, 2 = East, 3 = South, 4 = West
+-- ============================================================================
+-- RESTLICHER CODE (Navigation, GPS, etc.)
+-- ============================================================================
 
 local function detectDirectionFromDelta(dx, dz)
     if math.abs(dx) > math.abs(dz) then
-        return dx > 0 and 2 or 4 -- East / West
+        return dx > 0 and 2 or 4
     elseif math.abs(dz) > math.abs(dx) then
-        return dz > 0 and 3 or 1 -- South / North
+        return dz > 0 and 3 or 1
     end
     return nil
 end
 
--- Liefert stabilere GPS-Werte
 local function stableGPS()
     while true do
         print("Acquiring stable GPS...")
@@ -345,6 +440,7 @@ local function stableGPS()
         os.sleep(1)
     end
 end
+
 local function testMovement(turnBefore, turnAfter)
     if turnBefore then
         turnBefore()
@@ -371,7 +467,6 @@ local function testMovement(turnBefore, turnAfter)
         return nil
     end
 
-    -- Zurück-Test
     turnLeft()
     turnLeft()
     forward()
@@ -387,21 +482,18 @@ local function testMovement(turnBefore, turnAfter)
     return detectDirectionFromDelta(dx, dz)
 end
 
--- Bestimmt die Turtle-Richtung sicher
 local function getDirection()
     local maxAttempts = 8
     for attempt = 1, maxAttempts do
         print("Attempting to detect direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
         sendMessage()
 
-        -- 1) forward
         local dir = testMovement(nil, nil)
         if dir then
             print("Direction detected: " .. directionToString(dir))
             return dir
         end
 
-        -- 2) left
         dir = testMovement(function()
             turnLeft()
         end, function()
@@ -413,7 +505,6 @@ local function getDirection()
             return dir
         end
 
-        -- 3) right
         dir = testMovement(function()
             turnRight()
         end, function()
@@ -429,7 +520,6 @@ local function getDirection()
         os.sleep(1)
     end
 
-    -- Fallback: couldn't reliably detect direction. Use the current `direction` value (default set earlier)
     print("Warning: Could not detect direction after " .. maxAttempts ..
               " attempts. Falling back to current direction: " .. directionToString(direction))
     return direction
@@ -439,9 +529,7 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
     status = "Going to Position"
     print("Going to X:" .. targetX .. " Y:" .. targetY .. " Z:" .. targetZ .. " Dir:" .. directionToString(targetDir))
 
-    ---------------------------------------------------------------------------
-    -- 1. Y-Bewegung (hoch/runter)
-    ---------------------------------------------------------------------------
+    -- Y-Bewegung
     while currentY < targetY do
         up()
     end
@@ -450,39 +538,32 @@ local function goToPosition(targetX, targetY, targetZ, targetDir)
         down()
     end
 
-    ---------------------------------------------------------------------------
-    -- 2. X-Bewegung (Ost/West)
-    ---------------------------------------------------------------------------
+    -- X-Bewegung
     if targetX > currentX then
-        turnTo(2) -- East
+        turnTo(2)
         while currentX < targetX do
             forward()
         end
     elseif targetX < currentX then
-        turnTo(4) -- West
+        turnTo(4)
         while currentX > targetX do
             forward()
         end
     end
 
-    ---------------------------------------------------------------------------
-    -- 3. Z-Bewegung (Nord/Süd)
-    ---------------------------------------------------------------------------
+    -- Z-Bewegung
     if targetZ > currentZ then
-        turnTo(3) -- South
+        turnTo(3)
         while currentZ < targetZ do
             forward()
         end
     elseif targetZ < currentZ then
-        turnTo(1) -- North
+        turnTo(1)
         while currentZ > targetZ do
             forward()
         end
     end
 
-    ---------------------------------------------------------------------------
-    -- 4. Endausrichtung
-    ---------------------------------------------------------------------------
     turnTo(targetDir)
     sendMessage()
 end
@@ -511,7 +592,6 @@ local function connectToMaster()
             local dataReceived = textutils.unserialize(msg)
             log:logDebug(turtleName, "Received config from Master, chunkNumber: " .. dataReceived.chunkNumber)
 
-            -- Turtle-Name setzen, falls noch nicht vergeben
             if os.getComputerLabel() == nil then
                 log:logDebug(turtleName, "Setting computer label to " .. dataReceived.turtleName)
                 os.setComputerLabel(dataReceived.turtleName)
@@ -520,22 +600,18 @@ local function connectToMaster()
 
             chunkNumber = dataReceived.chunkNumber
 
-            -- Startkoordinaten vom Master übernehmen
             startCoords.x = dataReceived.chunkCoordinates.startX
             startCoords.z = dataReceived.chunkCoordinates.startZ
             startCoords.y = dataReceived.currentChunkDepth
-            startCoords.direction = dataReceived.startDirection or 1  -- Default North
+            startCoords.direction = dataReceived.startDirection or 1
 
-            -- Chest-Koordinaten
             chestCoords.x = dataReceived.chestCoordinates.x
             chestCoords.y = dataReceived.chestCoordinates.y
             chestCoords.z = dataReceived.chestCoordinates.z
             chestCoords.direction = dataReceived.chestCoordinates.direction
 
-            -- Trash-Items
             trash = dataReceived.trash or {}
 
-            -- Turtle zum Startpunkt bewegen
             goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
 
             log:logDebug(turtleName, "Going to chunk " .. dataReceived.chunkNumber)
@@ -547,7 +623,6 @@ local function connectToMaster()
     end
 end
 
-
 local function refuel()
     status = "Refueling"
     sendMessage()
@@ -557,9 +632,7 @@ local function refuel()
         local count = turtle.getItemCount(slot)
 
         if count > 0 then
-            -- testen, ob Item grundsätzlich als Fuel verwendbar ist
             if turtle.refuel(0) then
-                -- kompletten Stack benutzen
                 turtle.refuel(count)
                 print("Refueled with slot " .. slot .. " (" .. count .. " items)")
             end
@@ -602,44 +675,44 @@ local function mineStrip(length)
             turnLeft()
             goToPosition(x, y, z, dir)
         end
-        turtle.digUp()
-        turtle.digDown()
+        
+        -- SICHERE Mining-Operationen
+        safeDigUp()
+        safeDigDown()
         forward()
-        turtle.digUp()
-        turtle.digDown()
+        safeDigUp()
+        safeDigDown()
     end
 end
 
 local function mineTripleLayer(length, width)
     for x = 1, length do
-        mineStrip(width - 1) -- Minen der aktuellen Reihe
+        mineStrip(width - 1)
 
-        if x < length then -- Nur drehen, wenn noch eine weitere Reihe folgt
+        if x < length then
             if x % 2 == 1 then
-                turtle.digUp()
-                turtle.digDown()
+                safeDigUp()
+                safeDigDown()
                 turnRight()
                 forward()
                 turnRight()
-                turtle.digUp()
-                turtle.digDown()
+                safeDigUp()
+                safeDigDown()
             else
-                turtle.digUp()
-                turtle.digDown()
+                safeDigUp()
+                safeDigDown()
                 turnLeft()
                 forward()
                 turnLeft()
-                turtle.digUp()
-                turtle.digDown()
+                safeDigUp()
+                safeDigDown()
             end
         end
     end
 
-    -- Nach Beenden der Ebene zurück zum Start
     goToPosition(startCoords.x, currentY, startCoords.z, 2)
 end
 
--- Main quarry function
 local function quarry(length, width, height, startDirection)
     local layers = math.ceil(height / 3)
 
@@ -657,11 +730,11 @@ local function quarry(length, width, height, startDirection)
     end
 end
 
--- Program Start
---sleepForSeconds(3)
+-- ============================================================================
+-- PROGRAM START
+-- ============================================================================
 
 while true do
-
     currentX, currentY, currentZ = getGPS(5)
     sendMessage()
     if currentX then
