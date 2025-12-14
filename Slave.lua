@@ -673,7 +673,7 @@ end
 -- Lauscht kontinuierlich auf Befehle vom Master
 local function commandListener()
     while true do
-        local id, msg = rednet.receive("TURTLE_CMD", 0.5)
+        local id, msg = rednet.receive("TURTLE_CMD")
         if msg then
             local success, message = pcall(textutils.unserialize, msg)
             if success and message.type == "command" then
