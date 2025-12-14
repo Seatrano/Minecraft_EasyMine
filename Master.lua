@@ -1,253 +1,352 @@
-local DeviceFinder = require("helper.getDevices")
-local finder = DeviceFinder.new()
-local monitorFunctions = require("helper.monitorFunctions")
-local monitor = monitorFunctions.new()
 local logger = require("helper.logger")
 local log = logger.new()
-local MasterConfig = require("helper.MasterConfig")
-
-local masterConfig = MasterConfig:new()
+local MasterConfig = {}
+MasterConfig.__index = MasterConfig
 
 local configName = "masterConfig.txt"
 
-if not masterConfig:load(configName) then
-    log:logDebug("Master", "First start – creating initial config/state")
-    masterConfig:save(configName)
+function MasterConfig:new()
+    local obj = {
+        -- static config
+        chunkTimeout = 30000,
+        turtleTimeout = 5000,
+        firstStartPoint = {x=448, y=74, z=64},
+        chestCoordinates = {x=448, y=75, z=64, direction=1},
+        maxDepth = -60,
+
+        -- state
+        chunks = {},
+        turtles = {},
+        startPoint = nil,
+
+        trash = { 
+            ["minecraft:cobblestone"] = true, 
+            ["minecraft:dirt"] = true, 
+            ["minecraft:andesite"] = true, 
+            ["minecraft:diorite"] = true, 
+            ["create:limestone_cobblestone"] = true,
+            ["minecraft:gravel"] = true, 
+            ["minecraft:granite"] = true, 
+            ["minecraft:cobbled_deepslate"] = true 
+        }
+    }
+
+    obj.startPoint = obj.firstStartPoint
+    return setmetatable(obj, MasterConfig)
 end
 
-finder:openModem()
-
-local computerId = os.getComputerID()
-
-local function getNumber(prompt)
-    write(prompt)
-    return tonumber(read())
-end
-
-local chunkLastCheck = os.epoch("utc")
-local turtleLastCheck = os.epoch("utc")
-
-local mon = finder:getMonitor()
-local w, h = mon.getSize()
-
-mon.clear()
-mon.setCursorPos(1, 1)
-mon.write("Warte auf Daten...")
-
-local function directionToString(dir)
-    if dir == 1 then
-        return "North"
-    elseif dir == 2 then
-        return "East"
-    elseif dir == 3 then
-        return "South"
-    elseif dir == 4 then
-        return "West"
+-- Hilfsfunktion: Erstellt eine tiefe Kopie ohne Referenzen
+local function deepCopy(orig)
+    local copy
+    if type(orig) == 'table' then
+        copy = {}
+        for k, v in pairs(orig) do
+            copy[k] = deepCopy(v)
+        end
     else
-        return "?"
+        copy = orig
     end
+    return copy
 end
 
-local function getNewTurtleName()
-    local maxNumber = 0
-    for name, _ in pairs(masterConfig.turtles) do
-        local number = tonumber(name:match("%d+")) or 0
-        if number > maxNumber then
-            maxNumber = number
+-- Hilfsfunktion: Bereinigt eine Tabelle für Serialisierung
+local function cleanForSerialization(tbl)
+    if type(tbl) ~= "table" then
+        return tbl
+    end
+    
+    local cleaned = {}
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            cleaned[k] = cleanForSerialization(v)
+        else
+            cleaned[k] = v
         end
     end
-    print("Assigning new turtle name MT" .. (maxNumber + 1))
-    return "MT" .. (maxNumber + 1)
+    return cleaned
 end
 
-local function sendConfigToTurtle(id, turtleName, chunkNumber)
-    local payload = masterConfig:buildTurtleConfig(turtleName, chunkNumber)
-    rednet.send(id, textutils.serialize(payload), "C")
-    log:logDebug("Master", "Sent config to " .. turtleName .. " for chunk " .. chunkNumber)
+function MasterConfig:save(path)
+    -- Erstelle saubere Kopien der State-Daten
+    local chunksClean = {}
+    for i, chunk in ipairs(self.chunks) do
+        chunksClean[i] = {
+            chunkNumber = chunk.chunkNumber,
+            chunkCoordinates = {
+                startX = chunk.chunkCoordinates.startX,
+                startZ = chunk.chunkCoordinates.startZ,
+                endX = chunk.chunkCoordinates.endX,
+                endZ = chunk.chunkCoordinates.endZ
+            },
+            currentChunkDepth = chunk.currentChunkDepth,
+            workedByTurtleName = chunk.workedByTurtleName,
+            chunkLastUpdate = chunk.chunkLastUpdate,
+            startDirection = chunk.startDirection
+        }
+    end
+
+    local turtlesClean = {}
+    for name, turtle in pairs(self.turtles) do
+        turtlesClean[name] = {
+            turtleName = turtle.turtleName,
+            coordinates = turtle.coordinates and {
+                x = turtle.coordinates.x,
+                y = turtle.coordinates.y,
+                z = turtle.coordinates.z
+            } or nil,
+            direction = turtle.direction,
+            lastUpdate = turtle.lastUpdate,
+            status = turtle.status,
+            chunkNumber = turtle.chunkNumber,
+            fuelLevel = turtle.fuelLevel
+        }
+    end
+
+    local dataToSave = {
+        config = {
+            chunkTimeout = self.chunkTimeout,
+            turtleTimeout = self.turtleTimeout,
+            firstStartPoint = {
+                x = self.firstStartPoint.x,
+                y = self.firstStartPoint.y,
+                z = self.firstStartPoint.z
+            },
+            chestCoordinates = {
+                x = self.chestCoordinates.x,
+                y = self.chestCoordinates.y,
+                z = self.chestCoordinates.z,
+                direction = self.chestCoordinates.direction
+            },
+            maxDepth = self.maxDepth,
+            trash = cleanForSerialization(self.trash)
+        },
+        state = {
+            startPoint = self.startPoint and {
+                x = self.startPoint.x,
+                y = self.startPoint.y,
+                z = self.startPoint.z
+            } or nil,
+            chunks = chunksClean,
+            turtles = turtlesClean
+        }
+    }
+
+    local file = fs.open(path, "w")
+    local success, serialized = pcall(textutils.serialize, dataToSave)
+    
+    if not success then
+        file.close()
+        log:logDebug("Master", "ERROR: Failed to serialize config: " .. tostring(serialized))
+        error("Failed to serialize config: " .. tostring(serialized))
+    end
+    
+    file.write(serialized)
+    file.close()
 end
 
-local function sendMessageToMonitor()
+function MasterConfig:load(path)
+    if not fs.exists(path) then
+        -- echter First Start
+        self.startPoint = {x = self.firstStartPoint.x, y = self.firstStartPoint.y, z = self.firstStartPoint.z}
+        self.chunks = {}
+        self.turtles = {}
+        return false
+    end
 
-    while true do
-        local now = os.epoch("utc")
+    local file = fs.open(path, "r")
+    local content = file.readAll()
+    file.close()
 
-        -- 1. Prüfe Chunks auf Timeout
-        if now - chunkLastCheck >= masterConfig.chunkTimeout then
-            chunkLastCheck = now
-            for _, chunk in ipairs(masterConfig.chunks) do
-                if chunk.chunkLastUpdate ~= nil and chunk.chunkLastUpdate > 0 and (now - chunk.chunkLastUpdate) >
-                    masterConfig.chunkTimeout then
+    local success, data = pcall(textutils.unserialize, content)
+    if not success or not data then 
+        log:logDebug("Master", "ERROR: Failed to load config: " .. tostring(data))
+        return false 
+    end
 
-                    log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
+    local cfg = data.config or {}
+    local st  = data.state or {}
 
-                    -- Turtle auf offline setzen
-                    if chunk.workedByTurtleName and masterConfig.turtles[chunk.workedByTurtleName] then
-                        masterConfig.turtles[chunk.workedByTurtleName].status = "offline"
-                    end
+    -- Config
+    self.chunkTimeout = cfg.chunkTimeout or self.chunkTimeout
+    self.turtleTimeout = cfg.turtleTimeout or self.turtleTimeout
+    self.firstStartPoint = cfg.firstStartPoint or self.firstStartPoint
+    self.chestCoordinates = cfg.chestCoordinates or self.chestCoordinates
+    self.maxDepth = cfg.maxDepth or self.maxDepth
+    self.trash = cfg.trash or self.trash
 
-                    chunk.workedByTurtleName = nil
-                    chunk.chunkLastUpdate = 0
-                    masterConfig:save(configName)
-                end
-            end
+    -- State
+    self.startPoint = st.startPoint or {x = self.firstStartPoint.x, y = self.firstStartPoint.y, z = self.firstStartPoint.z}
+    self.chunks = st.chunks or {}
+    self.turtles = st.turtles or {}
+
+    -- Validierung: Stelle sicher, dass alle Chunks korrekt initialisiert sind
+    self:validateChunks()
+
+    return true
+end
+
+function MasterConfig:validateChunks()
+    -- Prüfe und repariere alle Chunks
+    for i, chunk in ipairs(self.chunks) do
+        if not chunk.chunkNumber then
+            chunk.chunkNumber = i
         end
-
-        -- 2. Prüfe Turtles auf Timeout
-        if now - turtleLastCheck >= masterConfig.turtleTimeout then
-            turtleLastCheck = now
-            for name, t in pairs(masterConfig.turtles) do
-                local last = t.lastUpdate or 0
-                if now - last > masterConfig.turtleTimeout then
-                    masterConfig.turtles[name].status = "offline"
-                end
-            end
-            masterConfig:save(configName)
+        if not chunk.chunkCoordinates then
+            chunk.chunkCoordinates = self:getChunkCoordinates(i)
         end
-
-        local id, msg = rednet.receive("MT", 0.1)
-        if msg and id ~= computerId then
-            local success, message = pcall(textutils.unserialize, msg)
-            
-            if not success then
-                log:logDebug("Master", "Failed to deserialize message from ID " .. id)
-            else
-                log:logDebug("Master", "Received message type: " .. (message.type or "unknown"))
-
-                if message.type == "newConnection" then
-                    local turtleName = message.turtleName or getNewTurtleName()
-
-                    -- Turtle registrieren oder reaktivieren
-                    if not masterConfig.turtles[turtleName] then
-                        masterConfig.turtles[turtleName] = {}
-                    end
-                    
-                    masterConfig.turtles[turtleName].turtleName = turtleName
-                    masterConfig.turtles[turtleName].coordinates = message.coordinates
-                    masterConfig.turtles[turtleName].direction = message.direction
-                    masterConfig.turtles[turtleName].lastUpdate = now
-                    masterConfig.turtles[turtleName].status = "connecting"
-
-                    -- Chunk zuweisen
-                    local chunk = masterConfig:findChunk(turtleName)
-                    masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
-
-                    -- Konfiguration senden
-                    sendConfigToTurtle(id, turtleName, chunk.chunkNumber)
-
-                    masterConfig:save(configName)
-
-                elseif message.type == "update" and message.turtleName ~= nil then
-                    local tName = message.turtleName
-                    
-                    if not masterConfig.turtles[tName] then
-                        -- Unbekannte Turtle - als neue Connection behandeln
-                        log:logDebug("Master", "Unknown turtle " .. tName .. " - treating as new connection")
-                        
-                        masterConfig.turtles[tName] = {
-                            turtleName = tName,
-                            coordinates = message.coordinates,
-                            direction = message.direction,
-                            fuelLevel = message.fuelLevel,
-                            status = "reconnecting",
-                            chunkNumber = message.chunkNumber,
-                            lastUpdate = now
-                        }
-                        
-                        -- Chunk prüfen und ggf. neu zuweisen
-                        local chunk = masterConfig:findChunk(tName)
-                        masterConfig.turtles[tName].chunkNumber = chunk.chunkNumber
-                        
-                        sendConfigToTurtle(id, tName, chunk.chunkNumber)
-                    else
-                        -- Bekannte Turtle - Update verarbeiten
-                        masterConfig.turtles[tName].coordinates = message.coordinates
-                        masterConfig.turtles[tName].direction = message.direction
-                        masterConfig.turtles[tName].fuelLevel = message.fuelLevel
-                        masterConfig.turtles[tName].status = message.status
-                        masterConfig.turtles[tName].lastUpdate = now
-                        
-                        -- Chunk-Update
-                        if message.chunkNumber and masterConfig.turtles[tName].chunkNumber ~= message.chunkNumber then
-                            masterConfig.turtles[tName].chunkNumber = message.chunkNumber
-                        end
-                        
-                        -- Chunk-LastUpdate aktualisieren
-                        local chunkNum = masterConfig.turtles[tName].chunkNumber
-                        if chunkNum and masterConfig.chunks[chunkNum] then
-                            masterConfig.chunks[chunkNum].chunkLastUpdate = now
-                        end
-                    end
-                    
-                    masterConfig:save(configName)
-
-                elseif message.type == "updateLayer" and message.turtleName ~= nil then
-                    -- NEUER HANDLER für Layer-Updates
-                    local tName = message.turtleName
-                    local height = message.height
-                    local chunkNum = message.chunkNumber
-                    
-                    if masterConfig.turtles[tName] and masterConfig.chunks[chunkNum] then
-                        masterConfig.chunks[chunkNum].currentChunkDepth = height
-                        masterConfig.chunks[chunkNum].chunkLastUpdate = now
-                        
-                        log:logDebug("Master", "Updated chunk " .. chunkNum .. " depth to " .. height)
-                        masterConfig:save(configName)
-                    else
-                        log:logDebug("Master", "Received updateLayer from unknown turtle/chunk: " .. tName)
-                    end
-                end
-            end
+        if not chunk.currentChunkDepth then
+            chunk.currentChunkDepth = self.firstStartPoint.y
         end
-
-        -- Hilfsfunktion: Zahl aus Turtle-Name extrahieren
-        local function turtleNumber(name)
-            return tonumber(name:match("%d+")) or 0
+        if not chunk.chunkLastUpdate then
+            chunk.chunkLastUpdate = 0
         end
-
-        -- Turtles als Array sammeln
-        local turtlesSorted = {}
-        for _, t in pairs(masterConfig.turtles) do
-            table.insert(turtlesSorted, t)
-        end
-
-        -- Sortieren nach Zahl im Namen
-        table.sort(turtlesSorted, function(a, b)
-            return turtleNumber(a.turtleName) < turtleNumber(b.turtleName)
-        end)
-
-        -- Monitor aktualisieren
-        mon.clear()
-        local row = 1
-        for _, t in ipairs(turtlesSorted) do
-            if row > h then
-                break
-            end
-
-            mon.setCursorPos(1, row)
-
-            mon.setTextColour(t.status == "offline" and colors.red or colors.white)
-
-            local name = monitor.padLeft(t.turtleName, 4)
-            local x = monitor.padRight(t.coordinates and t.coordinates.x or "?", 4)
-            local y = monitor.padRight(t.coordinates and t.coordinates.y or "?", 4)
-            local z = monitor.padRight(t.coordinates and t.coordinates.z or "?", 4)
-            local dirStr = monitor.padLeft(directionToString(t.direction), 6)
-            local fuel = monitor.padRight(t.fuelLevel or "?", 5)
-            local status = monitor.padLeft(t.status or "?", 12)
-            local chunk = monitor.padRight(t.chunkNumber or "?", 3)
-
-            mon.write(name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel ..
-                          " Chunk:" .. chunk .. " Status:" .. status)
-
-            row = row + 1
+        if not chunk.startDirection then
+            chunk.startDirection = 2
         end
     end
 end
 
-local function sendDebugLoop()
-    while true do
-        sleep(100)
+function MasterConfig:findChunk(turtleName)
+    local now = os.epoch("utc")
+
+    -- Prüfe zuerst, ob die Turtle bereits einen Chunk hat
+    if self.turtles[turtleName] and self.turtles[turtleName].chunkNumber then
+        local existingChunkNum = self.turtles[turtleName].chunkNumber
+        local existingChunk = self.chunks[existingChunkNum]
+        
+        if existingChunk and existingChunk.currentChunkDepth > self.maxDepth then
+            -- Chunk ist noch nicht fertig und kann weiterbearbeitet werden
+            if existingChunk.workedByTurtleName == turtleName or existingChunk.workedByTurtleName == nil then
+                existingChunk.workedByTurtleName = turtleName
+                existingChunk.chunkLastUpdate = now
+                log:logDebug("Master", "Reassigning existing chunk " .. existingChunkNum .. " to " .. turtleName)
+                return existingChunk
+            end
+        end
     end
+
+    -- Suche nach einem freien, unfertigen Chunk
+    for i, chunk in ipairs(self.chunks) do
+        if chunk.currentChunkDepth > self.maxDepth and (chunk.workedByTurtleName == nil or chunk.workedByTurtleName == "") then
+            chunk.workedByTurtleName = turtleName
+            chunk.chunkLastUpdate = now
+            log:logDebug("Master", "Assigning free chunk " .. chunk.chunkNumber .. " to " .. turtleName)
+            return chunk
+        end
+    end
+
+    -- Keiner frei → neuen Chunk erzeugen
+    local newIndex = #self.chunks + 1
+    local chunk = self:createChunk(newIndex, turtleName)
+
+    log:logDebug("Master", "Created new chunk " .. chunk.chunkNumber .. " for turtle " .. turtleName)
+    return chunk
 end
 
-parallel.waitForAll(sendMessageToMonitor, sendDebugLoop)
+function MasterConfig:getChunkCoordinates(chunkNumber)
+    local step = 16
+    local x = self.firstStartPoint.x
+    local z = self.firstStartPoint.z
+
+    local dir = 1  -- 1=East, 2=South, 3=West, 4=North
+    local steps_in_dir = 1
+    local steps_done = 0
+    local change_after = 2
+
+    if chunkNumber == 1 then
+        return {
+            startX = x,
+            startZ = z,
+            endX = x + step - 1,
+            endZ = z + step - 1
+        }
+    end
+
+    -- Spirale im Uhrzeigersinn: East -> South -> West -> North
+    for _ = 2, chunkNumber do
+        if dir == 1 then 
+            x = x + step
+        elseif dir == 2 then 
+            z = z + step
+        elseif dir == 3 then 
+            x = x - step
+        elseif dir == 4 then 
+            z = z - step 
+        end
+
+        steps_done = steps_done + 1
+        if steps_done == steps_in_dir then
+            dir = dir % 4 + 1
+            steps_done = 0
+            change_after = change_after - 1
+            if change_after == 0 then
+                steps_in_dir = steps_in_dir + 1
+                change_after = 2
+            end
+        end
+    end
+
+    return {
+        startX = x,
+        startZ = z,
+        endX = x + step - 1,
+        endZ = z + step - 1
+    }
+end
+
+function MasterConfig:createChunk(chunkNumber, turtleName)
+    local coords = self:getChunkCoordinates(chunkNumber)
+    
+    local newChunk = {
+        chunkNumber = chunkNumber,
+        chunkCoordinates = {
+            startX = coords.startX,
+            startZ = coords.startZ,
+            endX = coords.endX,
+            endZ = coords.endZ
+        },
+        currentChunkDepth = self.firstStartPoint.y,
+        workedByTurtleName = turtleName,
+        chunkLastUpdate = os.epoch("utc"),
+        startDirection = 2  -- East
+    }
+
+    self.chunks[chunkNumber] = newChunk
+    log:logDebug("Master", "Created chunk " .. chunkNumber .. " at X:" .. coords.startX .. " Z:" .. coords.startZ)
+    
+    return newChunk
+end
+
+function MasterConfig:buildTurtleConfig(turtleName, chunkNumber)
+    local chunk = self.chunks[chunkNumber]
+    
+    if not chunk then
+        log:logDebug("Master", "ERROR: Chunk " .. chunkNumber .. " does not exist!")
+        return nil
+    end
+
+    -- Erstelle eine saubere Kopie der Konfiguration
+    return {
+        type = "config",
+        turtleName = turtleName,
+        chunkNumber = chunk.chunkNumber,
+        chunkCoordinates = { 
+            startX = chunk.chunkCoordinates.startX, 
+            startZ = chunk.chunkCoordinates.startZ, 
+            endX = chunk.chunkCoordinates.endX, 
+            endZ = chunk.chunkCoordinates.endZ 
+        },
+        chestCoordinates = {
+            x = self.chestCoordinates.x,
+            y = self.chestCoordinates.y,
+            z = self.chestCoordinates.z,
+            direction = self.chestCoordinates.direction or 1
+        },
+        currentChunkDepth = chunk.currentChunkDepth,
+        startDirection = chunk.startDirection or 2,
+        maxDepth = self.maxDepth,
+        trash = cleanForSerialization(self.trash)
+    }
+end
+
+return MasterConfig

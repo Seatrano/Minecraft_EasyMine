@@ -35,40 +35,133 @@ function MasterConfig:new()
     return setmetatable(obj, MasterConfig)
 end
 
+-- Hilfsfunktion: Erstellt eine tiefe Kopie ohne Referenzen
+local function deepCopy(orig)
+    local copy
+    if type(orig) == 'table' then
+        copy = {}
+        for k, v in pairs(orig) do
+            copy[k] = deepCopy(v)
+        end
+    else
+        copy = orig
+    end
+    return copy
+end
+
+-- Hilfsfunktion: Bereinigt eine Tabelle für Serialisierung
+local function cleanForSerialization(tbl)
+    if type(tbl) ~= "table" then
+        return tbl
+    end
+    
+    local cleaned = {}
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            cleaned[k] = cleanForSerialization(v)
+        else
+            cleaned[k] = v
+        end
+    end
+    return cleaned
+end
+
 function MasterConfig:save(path)
-    local file = fs.open(path, "w")
-    file.write(textutils.serialize({
+    -- Erstelle saubere Kopien der State-Daten
+    local chunksClean = {}
+    for i, chunk in ipairs(self.chunks) do
+        chunksClean[i] = {
+            chunkNumber = chunk.chunkNumber,
+            chunkCoordinates = {
+                startX = chunk.chunkCoordinates.startX,
+                startZ = chunk.chunkCoordinates.startZ,
+                endX = chunk.chunkCoordinates.endX,
+                endZ = chunk.chunkCoordinates.endZ
+            },
+            currentChunkDepth = chunk.currentChunkDepth,
+            workedByTurtleName = chunk.workedByTurtleName,
+            chunkLastUpdate = chunk.chunkLastUpdate,
+            startDirection = chunk.startDirection
+        }
+    end
+
+    local turtlesClean = {}
+    for name, turtle in pairs(self.turtles) do
+        turtlesClean[name] = {
+            turtleName = turtle.turtleName,
+            coordinates = turtle.coordinates and {
+                x = turtle.coordinates.x,
+                y = turtle.coordinates.y,
+                z = turtle.coordinates.z
+            } or nil,
+            direction = turtle.direction,
+            lastUpdate = turtle.lastUpdate,
+            status = turtle.status,
+            chunkNumber = turtle.chunkNumber,
+            fuelLevel = turtle.fuelLevel
+        }
+    end
+
+    local dataToSave = {
         config = {
             chunkTimeout = self.chunkTimeout,
             turtleTimeout = self.turtleTimeout,
-            firstStartPoint = self.firstStartPoint,
-            chestCoordinates = self.chestCoordinates,
+            firstStartPoint = {
+                x = self.firstStartPoint.x,
+                y = self.firstStartPoint.y,
+                z = self.firstStartPoint.z
+            },
+            chestCoordinates = {
+                x = self.chestCoordinates.x,
+                y = self.chestCoordinates.y,
+                z = self.chestCoordinates.z,
+                direction = self.chestCoordinates.direction
+            },
             maxDepth = self.maxDepth,
-            trash = self.trash
+            trash = cleanForSerialization(self.trash)
         },
         state = {
-            startPoint = self.startPoint,
-            chunks = self.chunks,
-            turtles = self.turtles
+            startPoint = self.startPoint and {
+                x = self.startPoint.x,
+                y = self.startPoint.y,
+                z = self.startPoint.z
+            } or nil,
+            chunks = chunksClean,
+            turtles = turtlesClean
         }
-    }))
+    }
+
+    local file = fs.open(path, "w")
+    local success, serialized = pcall(textutils.serialize, dataToSave)
+    
+    if not success then
+        file.close()
+        log:logDebug("Master", "ERROR: Failed to serialize config: " .. tostring(serialized))
+        error("Failed to serialize config: " .. tostring(serialized))
+    end
+    
+    file.write(serialized)
     file.close()
 end
 
 function MasterConfig:load(path)
     if not fs.exists(path) then
         -- echter First Start
-        self.startPoint = self.firstStartPoint
+        self.startPoint = {x = self.firstStartPoint.x, y = self.firstStartPoint.y, z = self.firstStartPoint.z}
         self.chunks = {}
         self.turtles = {}
         return false
     end
 
     local file = fs.open(path, "r")
-    local data = textutils.unserialize(file.readAll())
+    local content = file.readAll()
     file.close()
 
-    if not data then return false end
+    local success, data = pcall(textutils.unserialize, content)
+    if not success or not data then 
+        log:logDebug("Master", "ERROR: Failed to load config: " .. tostring(data))
+        return false 
+    end
 
     local cfg = data.config or {}
     local st  = data.state or {}
@@ -82,7 +175,7 @@ function MasterConfig:load(path)
     self.trash = cfg.trash or self.trash
 
     -- State
-    self.startPoint = st.startPoint or self.firstStartPoint
+    self.startPoint = st.startPoint or {x = self.firstStartPoint.x, y = self.firstStartPoint.y, z = self.firstStartPoint.z}
     self.chunks = st.chunks or {}
     self.turtles = st.turtles or {}
 
@@ -202,9 +295,16 @@ function MasterConfig:getChunkCoordinates(chunkNumber)
 end
 
 function MasterConfig:createChunk(chunkNumber, turtleName)
+    local coords = self:getChunkCoordinates(chunkNumber)
+    
     local newChunk = {
         chunkNumber = chunkNumber,
-        chunkCoordinates = self:getChunkCoordinates(chunkNumber),
+        chunkCoordinates = {
+            startX = coords.startX,
+            startZ = coords.startZ,
+            endX = coords.endX,
+            endZ = coords.endZ
+        },
         currentChunkDepth = self.firstStartPoint.y,
         workedByTurtleName = turtleName,
         chunkLastUpdate = os.epoch("utc"),
@@ -212,7 +312,7 @@ function MasterConfig:createChunk(chunkNumber, turtleName)
     }
 
     self.chunks[chunkNumber] = newChunk
-    log:logDebug("Master", "Created chunk " .. chunkNumber .. " at X:" .. newChunk.chunkCoordinates.startX .. " Z:" .. newChunk.chunkCoordinates.startZ)
+    log:logDebug("Master", "Created chunk " .. chunkNumber .. " at X:" .. coords.startX .. " Z:" .. coords.startZ)
     
     return newChunk
 end
@@ -225,6 +325,7 @@ function MasterConfig:buildTurtleConfig(turtleName, chunkNumber)
         return nil
     end
 
+    -- Erstelle eine saubere Kopie der Konfiguration
     return {
         type = "config",
         turtleName = turtleName,
@@ -244,7 +345,7 @@ function MasterConfig:buildTurtleConfig(turtleName, chunkNumber)
         currentChunkDepth = chunk.currentChunkDepth,
         startDirection = chunk.startDirection or 2,
         maxDepth = self.maxDepth,
-        trash = self.trash
+        trash = cleanForSerialization(self.trash)
     }
 end
 
