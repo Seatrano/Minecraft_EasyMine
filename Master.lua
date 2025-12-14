@@ -78,16 +78,29 @@ local function sendMessageToMonitor()
                 if chunk.chunkLastUpdate ~= nil and chunk.chunkLastUpdate > 0 and (now - chunk.chunkLastUpdate) >
                     masterConfig.chunkTimeout then
 
-                    log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
-
-                    -- Turtle auf offline setzen
-                    if chunk.workedByTurtleName and masterConfig.turtles[chunk.workedByTurtleName] then
-                        masterConfig.turtles[chunk.workedByTurtleName].status = "offline"
+                    -- Prüfe ob die zugewiesene Turtle wirklich offline ist
+                    local turtleIsOffline = false
+                    if chunk.workedByTurtleName then
+                        local turtle = masterConfig.turtles[chunk.workedByTurtleName]
+                        if not turtle or turtle.status == "offline" or (now - (turtle.lastUpdate or 0)) > masterConfig.turtleTimeout then
+                            turtleIsOffline = true
+                        end
                     end
 
-                    chunk.workedByTurtleName = nil
-                    chunk.chunkLastUpdate = 0
-                    masterConfig:save(configName)
+                    if turtleIsOffline then
+                        log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Turtle " .. (chunk.workedByTurtleName or "unknown") .. " is offline. Releasing chunk.")
+
+                        -- Turtle auf offline setzen
+                        if chunk.workedByTurtleName and masterConfig.turtles[chunk.workedByTurtleName] then
+                            masterConfig.turtles[chunk.workedByTurtleName].status = "offline"
+                        end
+
+                        chunk.workedByTurtleName = nil
+                        chunk.chunkLastUpdate = 0
+                        masterConfig:save(configName)
+                    else
+                        log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timeout but turtle " .. (chunk.workedByTurtleName or "unknown") .. " still seems active")
+                    end
                 end
             end
         end
@@ -162,11 +175,16 @@ local function sendMessageToMonitor()
                             lastUpdate = now
                         }
                         
-                        -- Chunk prüfen und ggf. neu zuweisen
-                        local chunk = masterConfig:findChunk(tName)
-                        masterConfig.turtles[tName].chunkNumber = chunk.chunkNumber
-                        
-                        sendConfigToTurtle(id, tName, chunk.chunkNumber)
+                        -- Chunk-Konflikt prüfen
+                        local isOccupied, occupyingTurtle = masterConfig:isChunkOccupied(message.chunkNumber, tName)
+                        if isOccupied then
+                            log:logDebug("Master", "Chunk " .. message.chunkNumber .. " already occupied by " .. occupyingTurtle .. ", assigning new chunk to " .. tName)
+                            local newChunk = masterConfig:findChunk(tName)
+                            masterConfig.turtles[tName].chunkNumber = newChunk.chunkNumber
+                            sendConfigToTurtle(id, tName, newChunk.chunkNumber)
+                        else
+                            sendConfigToTurtle(id, tName, message.chunkNumber)
+                        end
                     else
                         -- Bekannte Turtle - Update verarbeiten
                         masterConfig.turtles[tName].coordinates = {
@@ -179,15 +197,31 @@ local function sendMessageToMonitor()
                         masterConfig.turtles[tName].status = message.status
                         masterConfig.turtles[tName].lastUpdate = now
                         
-                        -- Chunk-Update
-                        if message.chunkNumber and masterConfig.turtles[tName].chunkNumber ~= message.chunkNumber then
-                            masterConfig.turtles[tName].chunkNumber = message.chunkNumber
+                        -- Chunk-Update mit Validierung
+                        if message.chunkNumber then
+                            local currentChunk = masterConfig.turtles[tName].chunkNumber
+                            
+                            if currentChunk ~= message.chunkNumber then
+                                -- Turtle meldet anderen Chunk - prüfe ob das ok ist
+                                local isOccupied, occupyingTurtle = masterConfig:isChunkOccupied(message.chunkNumber, tName)
+                                
+                                if isOccupied then
+                                    log:logDebug("Master", "WARNING: " .. tName .. " reports chunk " .. message.chunkNumber .. " but it's occupied by " .. occupyingTurtle)
+                                    -- Weise neuen Chunk zu
+                                    local newChunk = masterConfig:findChunk(tName)
+                                    masterConfig.turtles[tName].chunkNumber = newChunk.chunkNumber
+                                    sendConfigToTurtle(id, tName, newChunk.chunkNumber)
+                                else
+                                    masterConfig.turtles[tName].chunkNumber = message.chunkNumber
+                                end
+                            end
                         end
                         
                         -- Chunk-LastUpdate aktualisieren
                         local chunkNum = masterConfig.turtles[tName].chunkNumber
                         if chunkNum and masterConfig.chunks[chunkNum] then
                             masterConfig.chunks[chunkNum].chunkLastUpdate = now
+                            masterConfig.chunks[chunkNum].workedByTurtleName = tName
                         end
                     end
                     
