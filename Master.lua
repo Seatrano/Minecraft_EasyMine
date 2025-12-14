@@ -172,32 +172,18 @@ local function sendMessageToMonitor()
                 log:logDebug("Master", "Received message type: " .. (message.type or "unknown"))
 
                 if message.type == "newConnection" then
-                    local turtleName = message.turtleName or getNewTurtleName()
-
-                    -- Turtle registrieren oder reaktivieren
-                    if not masterConfig.turtles[turtleName] then
-                        masterConfig.turtles[turtleName] = {}
+                    -- Prüfe ob Lock aktiv ist
+                    if assignmentLock then
+                        log:logDebug("Master", "Assignment locked - queuing connection request")
+                        table.insert(assignmentQueue, {
+                            id = id,
+                            message = message,
+                            now = now
+                        })
+                    else
+                        -- Lock frei - direkt verarbeiten
+                        processNewConnection(id, message, now)
                     end
-                    
-                    masterConfig.turtles[turtleName].turtleName = turtleName
-                    -- Erstelle eine saubere Kopie der Koordinaten
-                    masterConfig.turtles[turtleName].coordinates = {
-                        x = message.coordinates.x,
-                        y = message.coordinates.y,
-                        z = message.coordinates.z
-                    }
-                    masterConfig.turtles[turtleName].direction = message.direction
-                    masterConfig.turtles[turtleName].lastUpdate = now
-                    masterConfig.turtles[turtleName].status = "connecting"
-
-                    -- Chunk zuweisen
-                    local chunk = masterConfig:findChunk(turtleName)
-                    masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
-
-                    -- Konfiguration senden
-                    sendConfigToTurtle(id, turtleName, chunk.chunkNumber)
-
-                    masterConfig:save(configName)
 
                 elseif message.type == "update" and message.turtleName ~= nil then
                     local tName = message.turtleName
@@ -269,6 +255,9 @@ local function sendMessageToMonitor()
                 end
             end
         end
+        
+        -- Verarbeite wartende Turtles aus der Queue
+        processAssignmentQueue()
 
         -- Hilfsfunktion: Zahl aus Turtle-Name extrahieren
         local function turtleNumber(name)
@@ -289,6 +278,16 @@ local function sendMessageToMonitor()
         -- Monitor aktualisieren
         mon.clear()
         local row = 1
+        
+        -- Zeige Queue-Status und Counter in erster Zeile
+        if assignmentLock or #assignmentQueue > 0 then
+            mon.setCursorPos(1, row)
+            mon.setTextColour(colors.yellow)
+            mon.write("LOCK: " .. (assignmentLock and "ACTIVE" or "FREE") .. " | Queue: " .. #assignmentQueue .. " | Next: MT" .. masterConfig.nextTurtleNumber)
+            mon.setTextColour(colors.white)
+            row = row + 1
+        end
+        
         for _, t in ipairs(turtlesSorted) do
             if row > h then
                 break
