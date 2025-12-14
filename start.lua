@@ -16,6 +16,7 @@ if fs.exists(configFile) then
     f.close()
 end
 
+
 if not selection or selection == "" then
     print("Select mode for this computer:")
     print("1) GPS Host")
