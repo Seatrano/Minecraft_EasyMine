@@ -38,7 +38,7 @@ local function sendCommand(cmd, params)
         timestamp = os.epoch("utc")
     }
     
-    rednet.broadcast(textutils.serialize(message), "CMD")
+    rednet.broadcast(textutils.serialize(message), "TURTLE_CMD")
     print("[SENT] Command: " .. cmd)
     print("")
 end
