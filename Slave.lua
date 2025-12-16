@@ -349,6 +349,12 @@ function Movement.up()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
+        -- CHECK: Command override
+        if State.currentCommand == "resumeMining" and State.status:find("Returning") then
+            print("Movement interrupted by resumeMining!")
+            error("COMMAND_OVERRIDE")
+        end
+        
         if TurtleDetection.isAbove() then
             if not TurtleDetection.waitForClearAbove(10) then
                 if Movement.tryAvoidSideways() then
@@ -376,6 +382,12 @@ function Movement.down()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
+        -- CHECK: Command override
+        if State.currentCommand == "resumeMining" and State.status:find("Returning") then
+            print("Movement interrupted by resumeMining!")
+            error("COMMAND_OVERRIDE")
+        end
+        
         if TurtleDetection.isBelow() then
             if not TurtleDetection.waitForClearBelow(10) then
                 if Movement.tryAvoidSideways() then
@@ -403,6 +415,12 @@ function Movement.forward()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
+        -- CHECK: Wenn resumeMining kommt während returnToBase läuft, abbrechen!
+        if State.currentCommand == "resumeMining" and State.status:find("Returning") then
+            print("Movement interrupted by resumeMining!")
+            error("COMMAND_OVERRIDE")
+        end
+        
         if TurtleDetection.isAhead() then
             if not TurtleDetection.waitForClearAhead(10) then
                 -- Try vertical avoidance
@@ -709,14 +727,38 @@ function Commands.execute()
         return false
     end
     
-    print("Executing: " .. State.currentCommand)
-    State.status = "Command: " .. State.currentCommand
+    local cmd = State.currentCommand
+    print("Executing: " .. cmd)
+    State.status = "Command: " .. cmd
     Communication.sendUpdate()
     
-    if State.currentCommand == "returnToBase" then
-        Commands.returnToBase()
-    elseif State.currentCommand == "resumeMining" then
-        Commands.resumeMining()
+    local success, err
+    
+    if cmd == "returnToBase" then
+        success, err = pcall(Commands.returnToBase)
+        
+        -- Wenn durch neuen Befehl unterbrochen
+        if not success and (err == "COMMAND_OVERRIDE" or err == "RESTART_MINING") then
+            print("returnToBase was interrupted!")
+            -- Prüfe ob ein neuer Befehl da ist
+            if State.currentCommand ~= cmd then
+                print("New command detected: " .. State.currentCommand)
+                State.commandHandled = false
+                return Commands.execute() -- Führe neuen Befehl aus
+            end
+        elseif not success then
+            error(err) -- Echter Fehler
+        end
+        
+        -- Nach erfolgreichem returnToBase - prüfe auf neuen Befehl
+        if State.currentCommand ~= cmd then
+            print("New command detected after returnToBase: " .. State.currentCommand)
+            State.commandHandled = false
+            return Commands.execute()
+        end
+        
+    elseif cmd == "resumeMining" then
+        Commands.resumeMining() -- Wirft immer RESTART_MINING error
     end
     
     State.commandHandled = true
@@ -727,38 +769,65 @@ end
 function Commands.returnToBase()
     State.status = "Returning to Base"
     Communication.sendUpdate()
+    print("Going to base...")
     
-    Navigation.goToPosition(
-        State.chestCoords.x,
-        State.chestCoords.y - 1,
-        State.chestCoords.z,
-        State.chestCoords.direction
-    )
+    -- Wrapper für Navigation mit Command-Check
+    local success, err = pcall(function()
+        Navigation.goToPosition(
+            State.chestCoords.x,
+            State.chestCoords.y - 1,
+            State.chestCoords.z,
+            State.chestCoords.direction
+        )
+    end)
+    
+    -- Wenn Error durch neuen Befehl, propagiere ihn
+    if not success and (err == "COMMAND_OVERRIDE" or err == "RESTART_MINING") then
+        print("returnToBase interrupted by new command!")
+        error(err)
+    end
     
     State.status = "At Base"
     Communication.sendUpdate()
     print("At base. Waiting for commands...")
     
+    local waitCount = 0
     while State.currentCommand == "returnToBase" do
         os.sleep(1)
+        waitCount = waitCount + 1
+        if waitCount % 10 == 0 then
+            print("Still waiting... (" .. waitCount .. "s)")
+        end
     end
+    
+    print("Wait ended. Current command: " .. tostring(State.currentCommand))
 end
 
 function Commands.resumeMining()
+    print("=== RESUME MINING START ===")
     State.status = "Resuming Mining"
     Communication.sendUpdate()
     print("Requesting chunk reassignment...")
     
+    print("Freeing chunk...")
     State.chunkNumber = 0
-    Utils.updateGPS()
-    State.direction = Navigation.detectDirection()
     
+    print("Updating GPS...")
+    Utils.updateGPS()
+    print("Current position: X:" .. State.x .. " Y:" .. State.y .. " Z:" .. State.z)
+    
+    print("Detecting direction...")
+    State.direction = Navigation.detectDirection()
+    print("Direction: " .. Utils.directionToString(State.direction))
+    
+    print("Connecting to master...")
     Communication.connectToMaster()
     
-    print("Chunk reassigned, restarting mining...")
+    print("Chunk reassigned to: " .. State.chunkNumber)
+    print("Setting restart flag...")
     State.restartMining = true
     
-    -- WICHTIG: Werfe Error um kompletten Call-Stack abzubrechen
+    print("Throwing restart error...")
     error("RESTART_MINING")
 end
 
@@ -918,6 +987,18 @@ local function main()
                                   State.currentCommand == "emergencyStop" or 
                                   State.currentCommand == "returnToBase" do
                                 os.sleep(1)
+                                
+                                -- DEBUG: Zeige alle 10 Sekunden Status
+                                if (os.epoch("utc") % 10000) < 1000 then
+                                    print("Waiting... Current command: " .. tostring(State.currentCommand))
+                                end
+                            end
+                            print("Wait loop ended. Checking for resumeMining...")
+                            
+                            -- Wenn resumeMining gekommen ist, führe es aus
+                            if State.currentCommand == "resumeMining" then
+                                print("Executing resumeMining from wait loop...")
+                                Commands.execute()
                             end
                         end
                     else
@@ -928,7 +1009,7 @@ local function main()
                 
                 -- Check if restart was requested via error
                 if not success then
-                    if err == "RESTART_MINING" then
+                    if err == "RESTART_MINING" or err == "COMMAND_OVERRIDE" then
                         print("Restarting mining loop with new chunk...")
                         -- Loop continues from top
                     else
