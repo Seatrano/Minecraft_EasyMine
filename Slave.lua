@@ -4,7 +4,6 @@ local logger = require("helper.logger")
 local log = logger.new()
 finder:openModem()
 
-
 local computerId = os.getComputerID()
 local turtleName = os.getComputerLabel()
 local currentX, currentY, currentZ
@@ -163,6 +162,18 @@ local function turnTo(targetDir)
     direction = targetDir
 end
 
+local function getGPS()
+    while true do
+        currentX, currentY, currentZ = getGPS(5)
+        sendMessage()
+        if currentX then
+            break
+        end
+        log:logDebug(turtleName, "GPS not available, retrying...")
+        sleep(1)
+    end
+end
+
 -- ============================================================================
 -- SICHERE TURTLE-ERKENNUNG UND AUSWEICH-FUNKTIONEN
 -- ============================================================================
@@ -217,7 +228,7 @@ end
 local function waitForClearAhead(maxWait)
     maxWait = maxWait or 30
     local waited = 0
-    
+
     while isTurtleAhead() and waited < maxWait do
         status = "Waiting for Turtle"
         sendMessage()
@@ -225,14 +236,14 @@ local function waitForClearAhead(maxWait)
         os.sleep(1)
         waited = waited + 1
     end
-    
+
     return not isTurtleAhead()
 end
 
 local function waitForClearUp(maxWait)
     maxWait = maxWait or 30
     local waited = 0
-    
+
     while isTurtleUp() and waited < maxWait do
         status = "Waiting for Turtle"
         sendMessage()
@@ -240,14 +251,14 @@ local function waitForClearUp(maxWait)
         os.sleep(1)
         waited = waited + 1
     end
-    
+
     return not isTurtleUp()
 end
 
 local function waitForClearDown(maxWait)
     maxWait = maxWait or 30
     local waited = 0
-    
+
     while isTurtleDown() and waited < maxWait do
         status = "Waiting for Turtle"
         sendMessage()
@@ -255,14 +266,14 @@ local function waitForClearDown(maxWait)
         os.sleep(1)
         waited = waited + 1
     end
-    
+
     return not isTurtleDown()
 end
 
 -- Ausweich-Manöver: Versuche seitlich auszuweichen
 local function tryAvoidSideways()
     print("Attempting sideways avoidance...")
-    
+
     -- Versuche nach rechts
     turnRight()
     if not isTurtleAhead() then
@@ -279,7 +290,7 @@ local function tryAvoidSideways()
         end
     end
     turnLeft() -- Zurück zur ursprünglichen Richtung
-    
+
     -- Versuche nach links
     turnLeft()
     if not isTurtleAhead() then
@@ -296,7 +307,7 @@ local function tryAvoidSideways()
         end
     end
     turnRight() -- Zurück zur ursprünglichen Richtung
-    
+
     return false
 end
 
@@ -307,7 +318,7 @@ end
 local function up()
     local attempts = 0
     local maxAttempts = 60
-    
+
     while attempts < maxAttempts do
         if isTurtleUp() then
             print("Turtle above - waiting...")
@@ -326,18 +337,18 @@ local function up()
             sendMessage()
             return true
         end
-        
+
         attempts = attempts + 1
         os.sleep(0.5)
     end
-    
+
     error("Could not move up after " .. maxAttempts .. " attempts")
 end
 
 local function down()
     local attempts = 0
     local maxAttempts = 60
-    
+
     while attempts < maxAttempts do
         if isTurtleDown() then
             print("Turtle below - waiting...")
@@ -355,18 +366,18 @@ local function down()
             sendMessage()
             return true
         end
-        
+
         attempts = attempts + 1
         os.sleep(0.5)
     end
-    
+
     error("Could not move down after " .. maxAttempts .. " attempts")
 end
 
 local function forward()
     local attempts = 0
     local maxAttempts = 60
-    
+
     while attempts < maxAttempts do
         if isTurtleAhead() then
             print("Turtle ahead - waiting...")
@@ -379,12 +390,17 @@ local function forward()
                     os.sleep(2)
                     if not isTurtleAhead() and turtle.forward() then
                         -- Erfolgreich ausgewichen, gehe zurück runter
-                        if direction == 1 then currentZ = currentZ - 1
-                        elseif direction == 2 then currentX = currentX + 1
-                        elseif direction == 3 then currentZ = currentZ + 1
-                        elseif direction == 4 then currentX = currentX - 1 end
+                        if direction == 1 then
+                            currentZ = currentZ - 1
+                        elseif direction == 2 then
+                            currentX = currentX + 1
+                        elseif direction == 3 then
+                            currentZ = currentZ + 1
+                        elseif direction == 4 then
+                            currentX = currentX - 1
+                        end
                         sendMessage()
-                        
+
                         if not isTurtleDown() and turtle.down() then
                             currentY = currentY - 1
                             sendMessage()
@@ -406,18 +422,23 @@ local function forward()
         end
 
         if turtle.forward() then
-            if direction == 1 then currentZ = currentZ - 1
-            elseif direction == 2 then currentX = currentX + 1
-            elseif direction == 3 then currentZ = currentZ + 1
-            elseif direction == 4 then currentX = currentX - 1 end
+            if direction == 1 then
+                currentZ = currentZ - 1
+            elseif direction == 2 then
+                currentX = currentX + 1
+            elseif direction == 3 then
+                currentZ = currentZ + 1
+            elseif direction == 4 then
+                currentX = currentX - 1
+            end
             sendMessage()
             return true
         end
-        
+
         attempts = attempts + 1
         os.sleep(0.5)
     end
-    
+
     error("Could not move forward after " .. maxAttempts .. " attempts")
 end
 
@@ -692,47 +713,50 @@ local function executeCommand()
     if not currentCommand or commandHandled then
         return false
     end
-    
+
     print("Executing command: " .. currentCommand)
     status = "Command: " .. currentCommand
     sendMessage()
-    
+
     if currentCommand == "returnToBase" then
         status = "Returning to Base"
         sendMessage()
-        
+
         -- Gehe zur Chest (eine Position darunter)
         local baseX = chestCoords.x
         local baseY = chestCoords.y - 1
         local baseZ = chestCoords.z
         local baseDir = chestCoords.direction
-        
+
         log:logDebug(turtleName, "Going to base at X:" .. baseX .. " Y:" .. baseY .. " Z:" .. baseZ)
         goToPosition(baseX, baseY, baseZ, baseDir)
-        
+
         status = "At Base"
         sendMessage()
         print("Arrived at base. Waiting for further commands...")
-        
+
         -- Warte auf Resume-Befehl
         while currentCommand == "returnToBase" do
             os.sleep(1)
         end
-        
+
     elseif currentCommand == "resumeMining" then
         status = "Resuming Mining"
         sendMessage()
         print("Requesting chunk reassignment...")
-        
+
         -- WICHTIG: Chunk freigeben für Neuzuweisung
         chunkNumber = 0
-        
+
+        getGPS()
+        direction = getDirection()
+
         -- Neue Verbindung zum Master herstellen für Chunk-Zuweisung
         connectToMaster()
-        
+
         print("Chunk reassigned, continuing mining...")
     end
-    
+
     commandHandled = true
     currentCommand = nil
     return true
@@ -755,10 +779,10 @@ local function mineStrip(length)
                 return false -- Mining unterbrochen
             end
         end
-        
+
         status = "Mining"
         sendMessage()
-        
+
         if isInventoryFull() then
             refuel()
             local x, y, z, dir = currentX, currentY, currentZ, direction
@@ -768,7 +792,7 @@ local function mineStrip(length)
             turnLeft()
             goToPosition(x, y, z, dir)
         end
-        
+
         -- SICHERE Mining-Operationen
         safeDigUp()
         safeDigDown()
@@ -787,7 +811,7 @@ local function mineTripleLayer(length, width)
                 return false
             end
         end
-        
+
         if not mineStrip(width - 1) then
             return false -- Unterbrochen
         end
@@ -828,9 +852,9 @@ local function quarry(length, width, height, startDirection)
                 return false
             end
         end
-        
+
         updateForComputer(currentY)
-        
+
         if not mineTripleLayer(length, width) then
             print("Layer interrupted")
             return false
@@ -847,20 +871,13 @@ local function quarry(length, width, height, startDirection)
     return true
 end
 
+
+
 -- ============================================================================
 -- PROGRAM START
 -- ============================================================================
 
-while true do
-    currentX, currentY, currentZ = getGPS(5)
-    sendMessage()
-    if currentX then
-        break
-    end
-    print("GPS fehlt – warte bis die Welt komplett geladen ist...")
-    sleep(1)
-end
-
+getGPS()
 direction = getDirection()
 if currentX and currentY and currentZ and direction then
 
@@ -868,34 +885,31 @@ if currentX and currentY and currentZ and direction then
         "facing direction:" .. directionToString(direction))
 
     -- Haupt-Loop mit parallelem Command-Listening
-    parallel.waitForAny(
-        -- Command Listener läuft kontinuierlich
-        commandListener,
-        
-        -- Mining-Loop
-        function()
-            while true do
-                connectToMaster()
-                sleepForSeconds(3)
-                
-                -- Starte Mining
-                print("Starting quarry operation...")
-                local success = quarry(16, 16, startCoords.y, direction)
-                
-                if not success then
-                    print("Quarry interrupted. Waiting for resume...")
-                    -- Warte bis Resume-Befehl kommt
-                    while currentCommand == "pauseMining" or currentCommand == "emergencyStop" or currentCommand == "returnToBase" do
-                        os.sleep(1)
-                    end
+    parallel.waitForAny( -- Command Listener läuft kontinuierlich
+    commandListener, -- Mining-Loop
+    function()
+        while true do
+            connectToMaster()
+            sleepForSeconds(3)
+
+            -- Starte Mining
+            print("Starting quarry operation...")
+            local success = quarry(16, 16, startCoords.y, direction)
+
+            if not success then
+                print("Quarry interrupted. Waiting for resume...")
+                -- Warte bis Resume-Befehl kommt
+                while currentCommand == "pauseMining" or currentCommand == "emergencyStop" or currentCommand ==
+                    "returnToBase" do
+                    os.sleep(1)
                 end
-                
-                -- Chunk fertig - neuen anfordern
-                print("Chunk completed. Requesting new chunk...")
-                sleep(2)
             end
+
+            -- Chunk fertig - neuen anfordern
+            print("Chunk completed. Requesting new chunk...")
+            sleep(2)
         end
-    )
+    end)
 else
     error("Could not determine initial position or direction.")
 end

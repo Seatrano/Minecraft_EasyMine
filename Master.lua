@@ -177,8 +177,6 @@ local function sendMessageToMonitor()
             if not success then
                 log:logDebug("Master", "Failed to deserialize message from ID " .. id)
             else
-                log:logDebug("Master", "Received message type: " .. (message.type or "unknown"))
-
                 if message.type == "newConnection" then
                     -- Prüfe ob Lock aktiv ist
                     if assignmentLock then
