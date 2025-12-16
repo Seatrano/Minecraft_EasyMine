@@ -13,6 +13,7 @@ function DeviceFinder:find(typeName)
             return side
         end
     end
+    print("No peripheral of type '" .. typeName .. "' found.")
     return nil
 end
 
@@ -21,6 +22,7 @@ function DeviceFinder:openModem()
     if side then
         rednet.open(side)
     end
+    print("Modem not found. Cannot open rednet.")
     return side
 end
 
@@ -29,6 +31,7 @@ function DeviceFinder:getMonitor()
     if not side then
         return nil
     end
+    print("Monitor not found.")
     return peripheral.wrap(side)
 end
 
