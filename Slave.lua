@@ -722,11 +722,16 @@ local function executeCommand()
     elseif currentCommand == "resumeMining" then
         status = "Resuming Mining"
         sendMessage()
-        print("Resuming mining operations...")
+        print("Requesting chunk reassignment...")
         
-        -- Gehe zurück zur letzten Mining-Position
-        goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
-    
+        -- WICHTIG: Chunk freigeben für Neuzuweisung
+        chunkNumber = 0
+        
+        -- Neue Verbindung zum Master herstellen für Chunk-Zuweisung
+        connectToMaster()
+        
+        print("Chunk reassigned, continuing mining...")
+    end
     
     commandHandled = true
     currentCommand = nil
@@ -891,7 +896,7 @@ if currentX and currentY and currentZ and direction then
             end
         end
     )
-
 else
-    print("Could not determine initial position or direction. Aborting.")
+    error("Could not determine initial position or direction.")
+end
 end

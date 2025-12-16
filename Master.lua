@@ -82,6 +82,14 @@ local function processNewConnection(id, message, now)
     -- Turtle registrieren oder reaktivieren
     if not masterConfig.turtles[turtleName] then
         masterConfig.turtles[turtleName] = {}
+    else
+        -- WICHTIG: Alten Chunk freigeben wenn Turtle bereits existiert
+        local oldChunkNum = masterConfig.turtles[turtleName].chunkNumber
+        if oldChunkNum and masterConfig.chunks[oldChunkNum] then
+            log:logDebug("Master", "Releasing old chunk " .. oldChunkNum .. " from " .. turtleName)
+            masterConfig.chunks[oldChunkNum].workedByTurtleName = nil
+            masterConfig.chunks[oldChunkNum].chunkLastUpdate = 0
+        end
     end
     
     masterConfig.turtles[turtleName].turtleName = turtleName

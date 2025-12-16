@@ -251,33 +251,15 @@ function MasterConfig:findChunk(turtleName)
 
     log:logDebug("Master", "Finding chunk for " .. turtleName)
 
-    -- Prüfe zuerst, ob die Turtle bereits einen Chunk hat
-    if self.turtles[turtleName] and self.turtles[turtleName].chunkNumber then
-        local existingChunkNum = self.turtles[turtleName].chunkNumber
-        local existingChunk = self.chunks[existingChunkNum]
-        
-        if existingChunk and existingChunk.currentChunkDepth > self.maxDepth then
-            -- Chunk ist noch nicht fertig und kann weiterbearbeitet werden
-            if existingChunk.workedByTurtleName == turtleName or existingChunk.workedByTurtleName == nil then
-                existingChunk.workedByTurtleName = turtleName
-                existingChunk.chunkLastUpdate = now
-                log:logDebug("Master", "Reassigning existing chunk " .. existingChunkNum .. " to " .. turtleName)
-                return existingChunk
-            end
-        end
-    end
-
     -- Suche nach einem freien, unfertigen Chunk
     for i, chunk in ipairs(self.chunks) do
-        -- DOPPELTE PRÜFUNG: Chunk muss unfertig UND frei sein
         local isFree = (chunk.workedByTurtleName == nil or chunk.workedByTurtleName == "")
         local isUnfinished = chunk.currentChunkDepth > self.maxDepth
         
         if isUnfinished and isFree then
-            -- WICHTIG: Sofort als belegt markieren
             chunk.workedByTurtleName = turtleName
             chunk.chunkLastUpdate = now
-            log:logDebug("Master", "Assigning free chunk " .. chunk.chunkNumber .. " to " .. turtleName .. " (was free)")
+            log:logDebug("Master", "Assigning free chunk " .. chunk.chunkNumber .. " to " .. turtleName)
             return chunk
         end
     end
