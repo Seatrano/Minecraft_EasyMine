@@ -164,13 +164,15 @@ end
 
 local function getGPS()
     while true do
-        currentX, currentY, currentZ = getGPS(5)
+        currentX, currentY, currentZ = gps.locate(5)
         sendMessage()
+
         if currentX then
             break
         end
+
         log:logDebug(turtleName, "GPS not available, retrying...")
-        sleep(1)
+        sleepForSeconds(1)
     end
 end
 
