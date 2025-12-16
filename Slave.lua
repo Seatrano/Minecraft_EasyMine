@@ -726,61 +726,7 @@ local function executeCommand()
         
         -- Gehe zurück zur letzten Mining-Position
         goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
-        
-    elseif currentCommand == "pauseMining" then
-        status = "Paused"
-        sendMessage()
-        print("Mining paused. Waiting for resume command...")
-        
-        -- Warte auf Resume
-        while currentCommand == "pauseMining" do
-            os.sleep(1)
-        end
-        
-    elseif currentCommand == "emergencyStop" then
-        status = "Emergency Stop"
-        sendMessage()
-        print("EMERGENCY STOP activated!")
-        
-        -- Stoppe alle Operationen
-        while currentCommand == "emergencyStop" do
-            os.sleep(1)
-        end
-        
-    elseif currentCommand == "refuelAll" then
-        status = "Refueling"
-        sendMessage()
-        refuel()
-        status = "Refueled"
-        sendMessage()
-        
-    elseif currentCommand == "unloadAll" then
-        status = "Unloading Inventory"
-        sendMessage()
-        
-        local x, y, z, dir = currentX, currentY, currentZ, direction
-        goToPosition(chestCoords.x, chestCoords.y - 1, chestCoords.z, chestCoords.direction)
-        unload()
-        turnLeft()
-        turnLeft()
-        goToPosition(x, y, z, dir)
-        
-        status = "Inventory Unloaded"
-        sendMessage()
-        
-    elseif currentCommand == "statusReport" then
-        status = "Reporting Status"
-        sendMessage()
-        
-        print("Status Report:")
-        print("  Position: X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
-        print("  Direction: " .. directionToString(direction))
-        print("  Fuel: " .. turtle.getFuelLevel())
-        print("  Chunk: " .. chunkNumber)
-        
-        status = "Online"
-        sendMessage()
-    end
+    
     
     commandHandled = true
     currentCommand = nil
