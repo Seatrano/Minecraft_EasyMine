@@ -757,6 +757,9 @@ function Commands.resumeMining()
     
     print("Chunk reassigned, restarting mining...")
     State.restartMining = true
+    
+    -- WICHTIG: Werfe Error um kompletten Call-Stack abzubrechen
+    error("RESTART_MINING")
 end
 
 function Commands.check()
@@ -898,26 +901,40 @@ local function main()
             while true do
                 State.restartMining = false
                 
-                Communication.connectToMaster()
-                Utils.sleep(3)
-                
-                print("Starting quarry operation...")
-                local success = Mining.quarry(16, 16, State.startCoords.y)
-                
-                if not success then
-                    if State.restartMining then
-                        print("Restarting with new chunk...")
-                    else
-                        print("Quarry interrupted, waiting...")
-                        while State.currentCommand == "pauseMining" or 
-                              State.currentCommand == "emergencyStop" or 
-                              State.currentCommand == "returnToBase" do
-                            os.sleep(1)
+                -- Protect mining loop with pcall to catch restart signals
+                local success, err = pcall(function()
+                    Communication.connectToMaster()
+                    Utils.sleep(3)
+                    
+                    print("Starting quarry operation...")
+                    local miningSuccess = Mining.quarry(16, 16, State.startCoords.y)
+                    
+                    if not miningSuccess then
+                        if State.restartMining then
+                            print("Mining restart triggered")
+                        else
+                            print("Quarry interrupted, waiting for resume...")
+                            while State.currentCommand == "pauseMining" or 
+                                  State.currentCommand == "emergencyStop" or 
+                                  State.currentCommand == "returnToBase" do
+                                os.sleep(1)
+                            end
                         end
+                    else
+                        print("Chunk completed, requesting new chunk...")
+                        sleep(2)
                     end
-                else
-                    print("Chunk completed, requesting new chunk...")
-                    sleep(2)
+                end)
+                
+                -- Check if restart was requested via error
+                if not success then
+                    if err == "RESTART_MINING" then
+                        print("Restarting mining loop with new chunk...")
+                        -- Loop continues from top
+                    else
+                        -- Real error - propagate it
+                        error(err)
+                    end
                 end
             end
         end
