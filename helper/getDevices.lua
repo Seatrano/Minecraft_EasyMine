@@ -22,7 +22,6 @@ function DeviceFinder:openModem()
     if side then
         rednet.open(side)
     end
-    print("Modem not found. Cannot open rednet.")
     return side
 end
 
@@ -31,7 +30,6 @@ function DeviceFinder:getMonitor()
     if not side then
         return nil
     end
-    print("Monitor not found.")
     return peripheral.wrap(side)
 end
 

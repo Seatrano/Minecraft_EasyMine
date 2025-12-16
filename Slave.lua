@@ -899,4 +899,3 @@ if currentX and currentY and currentZ and direction then
 else
     error("Could not determine initial position or direction.")
 end
-end
