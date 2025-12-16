@@ -724,7 +724,6 @@ local function executeCommand()
         status = "Returning to Base"
         sendMessage()
 
-        -- Gehe zur Chest (eine Position darunter)
         local baseX = chestCoords.x
         local baseY = chestCoords.y - 1
         local baseZ = chestCoords.z
@@ -737,7 +736,6 @@ local function executeCommand()
         sendMessage()
         print("Arrived at base. Waiting for further commands...")
 
-        -- Warte auf Resume-Befehl
         while currentCommand == "returnToBase" do
             os.sleep(1)
         end
@@ -757,6 +755,13 @@ local function executeCommand()
         connectToMaster()
 
         print("Chunk reassigned, continuing mining...")
+
+        -- WICHTIG: Signal, dass Mining neu gestartet werden muss!
+        commandHandled = true
+        currentCommand = nil
+
+        -- Wirf einen Fehler um den aktuellen Mining-Loop zu beenden
+        error("RESTART_MINING")
     end
 
     commandHandled = true
@@ -873,8 +878,6 @@ local function quarry(length, width, height, startDirection)
     return true
 end
 
-
-
 -- ============================================================================
 -- PROGRAM START
 -- ============================================================================
@@ -889,27 +892,42 @@ if currentX and currentY and currentZ and direction then
     -- Haupt-Loop mit parallelem Command-Listening
     parallel.waitForAny( -- Command Listener läuft kontinuierlich
     commandListener, -- Mining-Loop
+    -- Mining-Loop
     function()
         while true do
-            connectToMaster()
-            sleepForSeconds(3)
+            -- Schütze den Mining-Loop vor Restart-Errors
+            local success, err = pcall(function()
+                connectToMaster()
+                sleepForSeconds(3)
 
-            -- Starte Mining
-            print("Starting quarry operation...")
-            local success = quarry(16, 16, startCoords.y, direction)
+                -- Starte Mining
+                print("Starting quarry operation...")
+                local miningSuccess = quarry(16, 16, startCoords.y, direction)
 
+                if not miningSuccess then
+                    print("Quarry interrupted. Waiting for resume...")
+                    -- Warte bis Resume-Befehl kommt
+                    while currentCommand == "pauseMining" or currentCommand == "emergencyStop" or currentCommand ==
+                        "returnToBase" do
+                        os.sleep(1)
+                    end
+                end
+
+                -- Chunk fertig - neuen anfordern
+                print("Chunk completed. Requesting new chunk...")
+                sleep(2)
+            end)
+
+            -- Prüfe ob ein Restart angefordert wurde
             if not success then
-                print("Quarry interrupted. Waiting for resume...")
-                -- Warte bis Resume-Befehl kommt
-                while currentCommand == "pauseMining" or currentCommand == "emergencyStop" or currentCommand ==
-                    "returnToBase" do
-                    os.sleep(1)
+                if err == "RESTART_MINING" then
+                    print("Restarting mining loop...")
+                    -- Loop startet von vorne
+                else
+                    -- Echter Fehler - nach oben propagieren
+                    error(err)
                 end
             end
-
-            -- Chunk fertig - neuen anfordern
-            print("Chunk completed. Requesting new chunk...")
-            sleep(2)
         end
     end)
 else
