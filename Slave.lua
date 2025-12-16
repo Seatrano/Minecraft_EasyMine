@@ -1,80 +1,593 @@
+-- ============================================================================
+-- SLAVE.LUA - Mining Turtle Controller
+-- ============================================================================
+
 local DeviceFinder = require("helper.getDevices")
-local finder = DeviceFinder.new()
 local logger = require("helper.logger")
+
+-- ============================================================================
+-- INITIALIZATION
+-- ============================================================================
+
+local finder = DeviceFinder.new()
 local log = logger.new()
 finder:openModem()
 
-local computerId = os.getComputerID()
-local turtleName = os.getComputerLabel()
-local currentX, currentY, currentZ
-local direction = 2
-local status = "Idle"
-local chunkNumber = 0
-local startCoords = {
-    x = 0,
-    y = 0,
-    z = 0,
-    direction = 1
+-- ============================================================================
+-- STATE MANAGEMENT
+-- ============================================================================
+
+local State = {
+    -- Identity
+    computerId = os.getComputerID(),
+    turtleName = os.getComputerLabel(),
+    
+    -- Position & Direction
+    x = nil,
+    y = nil,
+    z = nil,
+    direction = 2, -- 1=North, 2=East, 3=South, 4=West
+    
+    -- Status
+    status = "Idle",
+    chunkNumber = 0,
+    
+    -- Configuration
+    startCoords = {x = 0, y = 0, z = 0, direction = 1},
+    chestCoords = {},
+    trash = {},
+    
+    -- Command System
+    currentCommand = nil,
+    commandHandled = false,
+    restartMining = false
 }
 
-local chestCoords = {}
-local trash = {}
+-- ============================================================================
+-- CONSTANTS
+-- ============================================================================
 
--- BEFEHLSSYSTEM
-local currentCommand = nil
-local commandHandled = false
+local DIRECTION = {
+    NORTH = 1,
+    EAST = 2,
+    SOUTH = 3,
+    WEST = 4
+}
 
-local function sleepForSeconds(seconds)
+local MAX_MOVEMENT_ATTEMPTS = 60
+local WAIT_FOR_TURTLE_TIMEOUT = 30
+local TURTLE_BLOCK_NAME = "computercraft:turtle_advanced"
+
+-- ============================================================================
+-- UTILITY FUNCTIONS
+-- ============================================================================
+
+local Utils = {}
+
+function Utils.sleep(seconds)
     for i = 1, seconds do
         print("Sleeping... " .. (seconds - i + 1) .. "s remaining")
         os.sleep(1)
     end
 end
 
-local function getGPS(timeout)
-    timeout = timeout or 5
+function Utils.directionToString(dir)
+    local names = {"North", "East", "South", "West"}
+    return names[dir] or "Unknown"
+end
 
+function Utils.updateGPS()
     while true do
-        local x, y, z = gps.locate(timeout)
-        if x and z then
-            return x, y, z
+        State.x, State.y, State.z = gps.locate(5)
+        if State.x then
+            return
         end
-        print("GPS nicht verfügbar, warte 1 Sekunde...")
-        sleepForSeconds(1)
+        log:logDebug(State.turtleName, "GPS not available, retrying...")
+        Utils.sleep(1)
     end
 end
 
-local function sendMessage()
-    local data = {
-        type = "update",
-        coordinates = {
-            x = currentX,
-            y = currentY,
-            z = currentZ
-        },
-        fuelLevel = turtle.getFuelLevel(),
-        direction = direction,
-        status = status,
-        turtleName = turtleName,
-        chunkNumber = chunkNumber
-    }
-    local serializedData = textutils.serialize(data)
-    rednet.broadcast(serializedData, "MT")
+function Utils.stableGPS()
+    while true do
+        local x, y, z = gps.locate(1)
+        if x and z then
+            return x, y, z
+        end
+        os.sleep(1)
+    end
 end
 
-local function dropTrash()
-    status = "Dropping Trash"
-    sendMessage()
+-- ============================================================================
+-- COMMUNICATION
+-- ============================================================================
+
+local Communication = {}
+
+function Communication.sendUpdate()
+    local data = {
+        type = "update",
+        coordinates = {x = State.x, y = State.y, z = State.z},
+        fuelLevel = turtle.getFuelLevel(),
+        direction = State.direction,
+        status = State.status,
+        turtleName = State.turtleName,
+        chunkNumber = State.chunkNumber
+    }
+    rednet.broadcast(textutils.serialize(data), "MT")
+end
+
+function Communication.sendLayerUpdate(height)
+    local data = {
+        type = "updateLayer",
+        turtleName = State.turtleName,
+        height = height,
+        chunkNumber = State.chunkNumber
+    }
+    rednet.broadcast(textutils.serialize(data), "MT")
+end
+
+function Communication.connectToMaster()
+    print("Connecting to Master...")
+    
+    local data = {
+        type = "newConnection",
+        turtleName = State.turtleName,
+        coordinates = {x = State.x, y = State.y, z = State.z},
+        direction = State.direction
+    }
+    
+    log:logDebug(State.turtleName, string.format(
+        "Connecting from X:%d Y:%d Z:%d", State.x, State.y, State.z
+    ))
+    
+    rednet.broadcast(textutils.serialize(data), "MT")
+    
+    while true do
+        local id, msg = rednet.receive("C", 5)
+        if msg then
+            local config = textutils.unserialize(msg)
+            log:logDebug(State.turtleName, "Received config, chunk: " .. config.chunkNumber)
+            
+            -- Update label if needed
+            if not os.getComputerLabel() then
+                os.setComputerLabel(config.turtleName)
+                State.turtleName = config.turtleName
+            end
+            
+            -- Apply configuration
+            State.chunkNumber = config.chunkNumber
+            State.startCoords.x = config.chunkCoordinates.startX
+            State.startCoords.z = config.chunkCoordinates.startZ
+            State.startCoords.y = config.currentChunkDepth
+            State.startCoords.direction = config.startDirection or 1
+            
+            State.chestCoords = config.chestCoordinates
+            State.trash = config.trash or {}
+            
+            -- Move to chunk start position
+            Navigation.goToPosition(
+                State.startCoords.x,
+                State.startCoords.y,
+                State.startCoords.z,
+                State.startCoords.direction
+            )
+            
+            log:logDebug(State.turtleName, "Positioned at chunk " .. config.chunkNumber)
+            return
+        end
+        
+        log:logDebug(State.turtleName, "No response, retrying...")
+        rednet.broadcast(textutils.serialize(data), "MT")
+        sleep(3)
+    end
+end
+
+-- ============================================================================
+-- TURTLE DETECTION
+-- ============================================================================
+
+local TurtleDetection = {}
+
+function TurtleDetection.isAhead()
+    local success, data = turtle.inspect()
+    return success and data and data.name == TURTLE_BLOCK_NAME
+end
+
+function TurtleDetection.isAbove()
+    local success, data = turtle.inspectUp()
+    return success and data and data.name == TURTLE_BLOCK_NAME
+end
+
+function TurtleDetection.isBelow()
+    local success, data = turtle.inspectDown()
+    return success and data and data.name == TURTLE_BLOCK_NAME
+end
+
+function TurtleDetection.waitForClearAhead(maxWait)
+    maxWait = maxWait or WAIT_FOR_TURTLE_TIMEOUT
+    local waited = 0
+    
+    while TurtleDetection.isAhead() and waited < maxWait do
+        State.status = "Waiting for Turtle"
+        Communication.sendUpdate()
+        print("Turtle ahead, waiting...")
+        os.sleep(1)
+        waited = waited + 1
+    end
+    
+    return not TurtleDetection.isAhead()
+end
+
+function TurtleDetection.waitForClearAbove(maxWait)
+    maxWait = maxWait or WAIT_FOR_TURTLE_TIMEOUT
+    local waited = 0
+    
+    while TurtleDetection.isAbove() and waited < maxWait do
+        State.status = "Waiting for Turtle"
+        Communication.sendUpdate()
+        print("Turtle above, waiting...")
+        os.sleep(1)
+        waited = waited + 1
+    end
+    
+    return not TurtleDetection.isAbove()
+end
+
+function TurtleDetection.waitForClearBelow(maxWait)
+    maxWait = maxWait or WAIT_FOR_TURTLE_TIMEOUT
+    local waited = 0
+    
+    while TurtleDetection.isBelow() and waited < maxWait do
+        State.status = "Waiting for Turtle"
+        Communication.sendUpdate()
+        print("Turtle below, waiting...")
+        os.sleep(1)
+        waited = waited + 1
+    end
+    
+    return not TurtleDetection.isBelow()
+end
+
+-- ============================================================================
+-- MOVEMENT - Basic Actions
+-- ============================================================================
+
+local Movement = {}
+
+function Movement.safeDig()
+    if TurtleDetection.isAhead() then
+        return false
+    end
+    return turtle.dig()
+end
+
+function Movement.safeDigUp()
+    if TurtleDetection.isAbove() then
+        return false
+    end
+    return turtle.digUp()
+end
+
+function Movement.safeDigDown()
+    if TurtleDetection.isBelow() then
+        return false
+    end
+    return turtle.digDown()
+end
+
+function Movement.turnRight()
+    turtle.turnRight()
+    State.direction = (State.direction % 4) + 1
+    Communication.sendUpdate()
+end
+
+function Movement.turnLeft()
+    turtle.turnLeft()
+    State.direction = (State.direction - 2) % 4 + 1
+    Communication.sendUpdate()
+end
+
+function Movement.turnTo(targetDir)
+    local diff = (targetDir - State.direction) % 4
+    if diff == 1 then
+        turtle.turnRight()
+    elseif diff == 2 then
+        turtle.turnRight()
+        turtle.turnRight()
+    elseif diff == 3 then
+        turtle.turnLeft()
+    end
+    State.direction = targetDir
+    Communication.sendUpdate()
+end
+
+-- ============================================================================
+-- MOVEMENT - Avoidance Strategies
+-- ============================================================================
+
+function Movement.tryAvoidSideways()
+    print("Attempting sideways avoidance...")
+    
+    -- Try right
+    Movement.turnRight()
+    if not TurtleDetection.isAhead() and turtle.forward() then
+        os.sleep(2)
+        Movement.turnLeft()
+        if not TurtleDetection.isAhead() and turtle.forward() then
+            Movement.turnLeft()
+            if not TurtleDetection.isAhead() and turtle.forward() then
+                Movement.turnRight()
+                return true
+            end
+        end
+    end
+    Movement.turnLeft()
+    
+    -- Try left
+    Movement.turnLeft()
+    if not TurtleDetection.isAhead() and turtle.forward() then
+        os.sleep(2)
+        Movement.turnRight()
+        if not TurtleDetection.isAhead() and turtle.forward() then
+            Movement.turnRight()
+            if not TurtleDetection.isAhead() and turtle.forward() then
+                Movement.turnLeft()
+                return true
+            end
+        end
+    end
+    Movement.turnRight()
+    
+    return false
+end
+
+-- ============================================================================
+-- MOVEMENT - Primary Functions
+-- ============================================================================
+
+function Movement.up()
+    local attempts = 0
+    
+    while attempts < MAX_MOVEMENT_ATTEMPTS do
+        if TurtleDetection.isAbove() then
+            if not TurtleDetection.waitForClearAbove(10) then
+                if Movement.tryAvoidSideways() then
+                    attempts = 0
+                end
+            end
+        elseif turtle.detectUp() then
+            Movement.safeDigUp()
+        end
+        
+        if turtle.up() then
+            State.y = State.y + 1
+            Communication.sendUpdate()
+            return true
+        end
+        
+        attempts = attempts + 1
+        os.sleep(0.5)
+    end
+    
+    error("Could not move up after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
+end
+
+function Movement.down()
+    local attempts = 0
+    
+    while attempts < MAX_MOVEMENT_ATTEMPTS do
+        if TurtleDetection.isBelow() then
+            if not TurtleDetection.waitForClearBelow(10) then
+                if Movement.tryAvoidSideways() then
+                    attempts = 0
+                end
+            end
+        elseif turtle.detectDown() then
+            Movement.safeDigDown()
+        end
+        
+        if turtle.down() then
+            State.y = State.y - 1
+            Communication.sendUpdate()
+            return true
+        end
+        
+        attempts = attempts + 1
+        os.sleep(0.5)
+    end
+    
+    error("Could not move down after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
+end
+
+function Movement.forward()
+    local attempts = 0
+    
+    while attempts < MAX_MOVEMENT_ATTEMPTS do
+        if TurtleDetection.isAhead() then
+            if not TurtleDetection.waitForClearAhead(10) then
+                -- Try vertical avoidance
+                if not TurtleDetection.isAbove() and turtle.up() then
+                    State.y = State.y + 1
+                    Communication.sendUpdate()
+                    os.sleep(2)
+                    
+                    if not TurtleDetection.isAhead() and turtle.forward() then
+                        Movement.updatePositionForward()
+                        
+                        if not TurtleDetection.isBelow() and turtle.down() then
+                            State.y = State.y - 1
+                            Communication.sendUpdate()
+                            return true
+                        end
+                    else
+                        if not TurtleDetection.isBelow() then
+                            turtle.down()
+                            State.y = State.y - 1
+                            Communication.sendUpdate()
+                        end
+                    end
+                end
+                attempts = 0
+            end
+        elseif turtle.detect() then
+            Movement.safeDig()
+        end
+        
+        if turtle.forward() then
+            Movement.updatePositionForward()
+            return true
+        end
+        
+        attempts = attempts + 1
+        os.sleep(0.5)
+    end
+    
+    error("Could not move forward after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
+end
+
+function Movement.updatePositionForward()
+    if State.direction == DIRECTION.NORTH then
+        State.z = State.z - 1
+    elseif State.direction == DIRECTION.EAST then
+        State.x = State.x + 1
+    elseif State.direction == DIRECTION.SOUTH then
+        State.z = State.z + 1
+    elseif State.direction == DIRECTION.WEST then
+        State.x = State.x - 1
+    end
+    Communication.sendUpdate()
+end
+
+-- ============================================================================
+-- NAVIGATION
+-- ============================================================================
+
+Navigation = {}
+
+function Navigation.goToPosition(targetX, targetY, targetZ, targetDir)
+    State.status = "Going to Position"
+    print(string.format(
+        "Going to X:%d Y:%d Z:%d Dir:%s",
+        targetX, targetY, targetZ, Utils.directionToString(targetDir)
+    ))
+    
+    -- Move Y first
+    while State.y < targetY do
+        Movement.up()
+    end
+    while State.y > targetY do
+        Movement.down()
+    end
+    
+    -- Move X
+    if targetX > State.x then
+        Movement.turnTo(DIRECTION.EAST)
+        while State.x < targetX do
+            Movement.forward()
+        end
+    elseif targetX < State.x then
+        Movement.turnTo(DIRECTION.WEST)
+        while State.x > targetX do
+            Movement.forward()
+        end
+    end
+    
+    -- Move Z
+    if targetZ > State.z then
+        Movement.turnTo(DIRECTION.SOUTH)
+        while State.z < targetZ do
+            Movement.forward()
+        end
+    elseif targetZ < State.z then
+        Movement.turnTo(DIRECTION.NORTH)
+        while State.z > targetZ do
+            Movement.forward()
+        end
+    end
+    
+    Movement.turnTo(targetDir)
+end
+
+function Navigation.detectDirection()
+    local function testMovement(turnBefore, turnAfter)
+        if turnBefore then turnBefore() end
+        
+        local x1, y1, z1 = Utils.stableGPS()
+        if not x1 then
+            if turnAfter then turnAfter() end
+            return nil
+        end
+        
+        Movement.forward()
+        os.sleep(1)
+        
+        local x2, y2, z2 = Utils.stableGPS()
+        if not x2 then
+            if turnAfter then turnAfter() end
+            return nil
+        end
+        
+        -- Return to original position
+        Movement.turnLeft()
+        Movement.turnLeft()
+        Movement.forward()
+        Movement.turnLeft()
+        Movement.turnLeft()
+        
+        if turnAfter then turnAfter() end
+        
+        local dx = x2 - x1
+        local dz = z2 - z1
+        
+        if math.abs(dx) > math.abs(dz) then
+            return dx > 0 and DIRECTION.EAST or DIRECTION.WEST
+        elseif math.abs(dz) > math.abs(dx) then
+            return dz > 0 and DIRECTION.SOUTH or DIRECTION.NORTH
+        end
+        return nil
+    end
+    
+    local maxAttempts = 8
+    for attempt = 1, maxAttempts do
+        print("Detecting direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
+        
+        local dir = testMovement(nil, nil)
+        if dir then return dir end
+        
+        dir = testMovement(Movement.turnLeft, Movement.turnRight)
+        if dir then return dir end
+        
+        dir = testMovement(Movement.turnRight, Movement.turnLeft)
+        if dir then return dir end
+        
+        os.sleep(1)
+    end
+    
+    print("Warning: Could not detect direction, using current")
+    return State.direction
+end
+
+-- ============================================================================
+-- INVENTORY MANAGEMENT
+-- ============================================================================
+
+local Inventory = {}
+
+function Inventory.dropTrash()
+    State.status = "Dropping Trash"
+    Communication.sendUpdate()
+    
     for i = 1, 16 do
         local item = turtle.getItemDetail(i)
-        if item and trash[item.name] then
+        if item and State.trash[item.name] then
             turtle.select(i)
             turtle.dropDown()
         end
     end
 end
 
-local function sortInventory()
+function Inventory.sort()
+    -- Combine stacks
     for i = 1, 16 do
         local itemI = turtle.getItemDetail(i)
         if itemI then
@@ -87,7 +600,8 @@ local function sortInventory()
             end
         end
     end
-
+    
+    -- Compact empty slots
     for i = 1, 16 do
         if turtle.getItemCount(i) == 0 then
             for j = i + 1, 16 do
@@ -99,837 +613,316 @@ local function sortInventory()
             end
         end
     end
-
+    
     turtle.select(1)
 end
 
-local function isInventoryFull()
+function Inventory.isFull()
     for i = 1, 16 do
         if turtle.getItemCount(i) == 0 then
             return false
         end
     end
-
-    sortInventory()
-    dropTrash()
-
+    
+    Inventory.sort()
+    Inventory.dropTrash()
+    
     for i = 1, 16 do
         if turtle.getItemCount(i) == 0 then
             return false
         end
     end
-
+    
     return true
 end
 
-local function directionToString(dir)
-    if dir == 1 then
-        return "North"
-    elseif dir == 2 then
-        return "East"
-    elseif dir == 3 then
-        return "South"
-    elseif dir == 4 then
-        return "West"
-    else
-        return "Unknown"
-    end
-end
-
-local function turnRight()
-    turtle.turnRight()
-    sendMessage()
-    direction = (direction % 4) + 1
-end
-
-local function turnLeft()
-    turtle.turnLeft()
-    sendMessage()
-    direction = (direction - 2) % 4 + 1
-end
-
-local function turnTo(targetDir)
-    local diff = (targetDir - direction) % 4
-    if diff == 1 then
-        turtle.turnRight()
-    elseif diff == 2 then
-        turtle.turnRight()
-        turtle.turnRight()
-    elseif diff == 3 then
-        turtle.turnLeft()
-    end
-    sendMessage()
-    direction = targetDir
-end
-
-local function getGPS()
-    while true do
-        currentX, currentY, currentZ = gps.locate(5)
-        sendMessage()
-
-        if currentX then
-            break
-        end
-
-        log:logDebug(turtleName, "GPS not available, retrying...")
-        sleepForSeconds(1)
-    end
-end
-
--- ============================================================================
--- SICHERE TURTLE-ERKENNUNG UND AUSWEICH-FUNKTIONEN
--- ============================================================================
-
-local function isTurtleAhead()
-    local success, data = turtle.inspect()
-    if success and data and data.name == "computercraft:turtle_advanced" then
-        return true
-    end
-    return false
-end
-
-local function isTurtleUp()
-    local success, data = turtle.inspectUp()
-    if success and data and data.name == "computercraft:turtle_advanced" then
-        return true
-    end
-    return false
-end
-
-local function isTurtleDown()
-    local success, data = turtle.inspectDown()
-    if success and data and data.name == "computercraft:turtle_advanced" then
-        return true
-    end
-    return false
-end
-
--- SICHERE DIG-FUNKTIONEN: Niemals eine Turtle abbauen!
-local function safeDig()
-    if isTurtleAhead() then
-        return false -- Turtle im Weg - nicht abbauen!
-    end
-    return turtle.dig()
-end
-
-local function safeDigUp()
-    if isTurtleUp() then
-        return false -- Turtle im Weg - nicht abbauen!
-    end
-    return turtle.digUp()
-end
-
-local function safeDigDown()
-    if isTurtleDown() then
-        return false -- Turtle im Weg - nicht abbauen!
-    end
-    return turtle.digDown()
-end
-
--- Wartet bis der Weg frei ist
-local function waitForClearAhead(maxWait)
-    maxWait = maxWait or 30
-    local waited = 0
-
-    while isTurtleAhead() and waited < maxWait do
-        status = "Waiting for Turtle"
-        sendMessage()
-        print("Turtle ahead detected, waiting...")
-        os.sleep(1)
-        waited = waited + 1
-    end
-
-    return not isTurtleAhead()
-end
-
-local function waitForClearUp(maxWait)
-    maxWait = maxWait or 30
-    local waited = 0
-
-    while isTurtleUp() and waited < maxWait do
-        status = "Waiting for Turtle"
-        sendMessage()
-        print("Turtle above detected, waiting...")
-        os.sleep(1)
-        waited = waited + 1
-    end
-
-    return not isTurtleUp()
-end
-
-local function waitForClearDown(maxWait)
-    maxWait = maxWait or 30
-    local waited = 0
-
-    while isTurtleDown() and waited < maxWait do
-        status = "Waiting for Turtle"
-        sendMessage()
-        print("Turtle below detected, waiting...")
-        os.sleep(1)
-        waited = waited + 1
-    end
-
-    return not isTurtleDown()
-end
-
--- Ausweich-Manöver: Versuche seitlich auszuweichen
-local function tryAvoidSideways()
-    print("Attempting sideways avoidance...")
-
-    -- Versuche nach rechts
-    turnRight()
-    if not isTurtleAhead() then
-        if turtle.forward() then
-            os.sleep(2) -- Warte kurz
-            turnLeft()
-            if not isTurtleAhead() and turtle.forward() then
-                turnLeft()
-                if not isTurtleAhead() and turtle.forward() then
-                    turnRight()
-                    return true
-                end
-            end
-        end
-    end
-    turnLeft() -- Zurück zur ursprünglichen Richtung
-
-    -- Versuche nach links
-    turnLeft()
-    if not isTurtleAhead() then
-        if turtle.forward() then
-            os.sleep(2)
-            turnRight()
-            if not isTurtleAhead() and turtle.forward() then
-                turnRight()
-                if not isTurtleAhead() and turtle.forward() then
-                    turnLeft()
-                    return true
-                end
-            end
-        end
-    end
-    turnRight() -- Zurück zur ursprünglichen Richtung
-
-    return false
-end
-
--- ============================================================================
--- VERBESSERTE BEWEGUNGS-FUNKTIONEN
--- ============================================================================
-
-local function up()
-    local attempts = 0
-    local maxAttempts = 60
-
-    while attempts < maxAttempts do
-        if isTurtleUp() then
-            print("Turtle above - waiting...")
-            if not waitForClearUp(10) then
-                -- Nach 10 Sekunden warten, versuche auszuweichen
-                if tryAvoidSideways() then
-                    attempts = 0 -- Reset nach erfolgreichem Ausweichen
-                end
-            end
-        elseif turtle.detectUp() then
-            safeDigUp()
-        end
-
-        if turtle.up() then
-            currentY = currentY + 1
-            sendMessage()
-            return true
-        end
-
-        attempts = attempts + 1
-        os.sleep(0.5)
-    end
-
-    error("Could not move up after " .. maxAttempts .. " attempts")
-end
-
-local function down()
-    local attempts = 0
-    local maxAttempts = 60
-
-    while attempts < maxAttempts do
-        if isTurtleDown() then
-            print("Turtle below - waiting...")
-            if not waitForClearDown(10) then
-                if tryAvoidSideways() then
-                    attempts = 0
-                end
-            end
-        elseif turtle.detectDown() then
-            safeDigDown()
-        end
-
-        if turtle.down() then
-            currentY = currentY - 1
-            sendMessage()
-            return true
-        end
-
-        attempts = attempts + 1
-        os.sleep(0.5)
-    end
-
-    error("Could not move down after " .. maxAttempts .. " attempts")
-end
-
-local function forward()
-    local attempts = 0
-    local maxAttempts = 60
-
-    while attempts < maxAttempts do
-        if isTurtleAhead() then
-            print("Turtle ahead - waiting...")
-            if not waitForClearAhead(10) then
-                -- Versuche vertikales Ausweichen
-                print("Attempting vertical avoidance...")
-                if not isTurtleUp() and turtle.up() then
-                    currentY = currentY + 1
-                    sendMessage()
-                    os.sleep(2)
-                    if not isTurtleAhead() and turtle.forward() then
-                        -- Erfolgreich ausgewichen, gehe zurück runter
-                        if direction == 1 then
-                            currentZ = currentZ - 1
-                        elseif direction == 2 then
-                            currentX = currentX + 1
-                        elseif direction == 3 then
-                            currentZ = currentZ + 1
-                        elseif direction == 4 then
-                            currentX = currentX - 1
-                        end
-                        sendMessage()
-
-                        if not isTurtleDown() and turtle.down() then
-                            currentY = currentY - 1
-                            sendMessage()
-                            return true
-                        end
-                    else
-                        -- Ausweichen fehlgeschlagen, zurück
-                        if not isTurtleDown() then
-                            turtle.down()
-                            currentY = currentY - 1
-                            sendMessage()
-                        end
-                    end
-                end
-                attempts = 0 -- Reset nach Ausweichversuch
-            end
-        elseif turtle.detect() then
-            safeDig()
-        end
-
-        if turtle.forward() then
-            if direction == 1 then
-                currentZ = currentZ - 1
-            elseif direction == 2 then
-                currentX = currentX + 1
-            elseif direction == 3 then
-                currentZ = currentZ + 1
-            elseif direction == 4 then
-                currentX = currentX - 1
-            end
-            sendMessage()
-            return true
-        end
-
-        attempts = attempts + 1
-        os.sleep(0.5)
-    end
-
-    error("Could not move forward after " .. maxAttempts .. " attempts")
-end
-
--- ============================================================================
--- RESTLICHER CODE (Navigation, GPS, etc.)
--- ============================================================================
-
-local function detectDirectionFromDelta(dx, dz)
-    if math.abs(dx) > math.abs(dz) then
-        return dx > 0 and 2 or 4
-    elseif math.abs(dz) > math.abs(dx) then
-        return dz > 0 and 3 or 1
-    end
-    return nil
-end
-
-local function stableGPS()
-    while true do
-        print("Acquiring stable GPS...")
-        local x, y, z = gps.locate(1)
-        if x and z then
-            return x, y, z
-        end
-        os.sleep(1)
-    end
-end
-
-local function testMovement(turnBefore, turnAfter)
-    if turnBefore then
-        turnBefore()
-    end
-
-    local x1, y1, z1 = stableGPS()
-    print("GPS before move: ", x1, y1, z1)
-    if not x1 then
-        if turnAfter then
-            turnAfter()
-        end
-        return nil
-    end
-
-    forward()
-
-    os.sleep(1)
-    local x2, y2, z2 = stableGPS()
-    print("GPS after move: ", x2, y2, z2)
-    if not x2 then
-        if turnAfter then
-            turnAfter()
-        end
-        return nil
-    end
-
-    turnLeft()
-    turnLeft()
-    forward()
-    turnLeft()
-    turnLeft()
-
-    if turnAfter then
-        turnAfter()
-    end
-
-    local dx = x2 - x1
-    local dz = z2 - z1
-    return detectDirectionFromDelta(dx, dz)
-end
-
-local function getDirection()
-    local maxAttempts = 8
-    for attempt = 1, maxAttempts do
-        print("Attempting to detect direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
-        sendMessage()
-
-        local dir = testMovement(nil, nil)
-        if dir then
-            print("Direction detected: " .. directionToString(dir))
-            return dir
-        end
-
-        dir = testMovement(function()
-            turnLeft()
-        end, function()
-            turnRight()
-        end)
-
-        if dir then
-            print("Direction detected (left): " .. directionToString(dir))
-            return dir
-        end
-
-        dir = testMovement(function()
-            turnRight()
-        end, function()
-            turnLeft()
-        end)
-
-        if dir then
-            print("Direction detected (right): " .. directionToString(dir))
-            return dir
-        end
-
-        print("No valid direction detected on this attempt. Retrying in 1 second...")
-        os.sleep(1)
-    end
-
-    print("Warning: Could not detect direction after " .. maxAttempts ..
-              " attempts. Falling back to current direction: " .. directionToString(direction))
-    return direction
-end
-
-local function goToPosition(targetX, targetY, targetZ, targetDir)
-    status = "Going to Position"
-    print("Going to X:" .. targetX .. " Y:" .. targetY .. " Z:" .. targetZ .. " Dir:" .. directionToString(targetDir))
-
-    -- Y-Bewegung
-    while currentY < targetY do
-        up()
-    end
-
-    while currentY > targetY do
-        down()
-    end
-
-    -- X-Bewegung
-    if targetX > currentX then
-        turnTo(2)
-        while currentX < targetX do
-            forward()
-        end
-    elseif targetX < currentX then
-        turnTo(4)
-        while currentX > targetX do
-            forward()
-        end
-    end
-
-    -- Z-Bewegung
-    if targetZ > currentZ then
-        turnTo(3)
-        while currentZ < targetZ do
-            forward()
-        end
-    elseif targetZ < currentZ then
-        turnTo(1)
-        while currentZ > targetZ do
-            forward()
-        end
-    end
-
-    turnTo(targetDir)
-    sendMessage()
-end
-
-local function connectToMaster()
-    print("Connecting to Master...")
-
-    local data = {
-        type = "newConnection",
-        turtleName = turtleName,
-        coordinates = {
-            x = currentX,
-            y = currentY,
-            z = currentZ
-        },
-        direction = direction
-    }
-
-    log:logDebug(turtleName, "Connecting to Master from X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ)
-
-    rednet.broadcast(textutils.serialize(data), "MT")
-
-    while true do
-        local id, msg = rednet.receive("C")
-        if msg then
-            local dataReceived = textutils.unserialize(msg)
-            log:logDebug(turtleName, "Received config from Master, chunkNumber: " .. dataReceived.chunkNumber)
-
-            if os.getComputerLabel() == nil then
-                log:logDebug(turtleName, "Setting computer label to " .. dataReceived.turtleName)
-                os.setComputerLabel(dataReceived.turtleName)
-                turtleName = dataReceived.turtleName
-            end
-
-            chunkNumber = dataReceived.chunkNumber
-
-            startCoords.x = dataReceived.chunkCoordinates.startX
-            startCoords.z = dataReceived.chunkCoordinates.startZ
-            startCoords.y = dataReceived.currentChunkDepth
-            startCoords.direction = dataReceived.startDirection or 1
-
-            chestCoords.x = dataReceived.chestCoordinates.x
-            chestCoords.y = dataReceived.chestCoordinates.y
-            chestCoords.z = dataReceived.chestCoordinates.z
-            chestCoords.direction = dataReceived.chestCoordinates.direction
-
-            trash = dataReceived.trash or {}
-
-            goToPosition(startCoords.x, startCoords.y, startCoords.z, startCoords.direction)
-
-            log:logDebug(turtleName, "Going to chunk " .. dataReceived.chunkNumber)
-            break
-        else
-            log:logDebug(turtleName, "No response from Master, retrying in 3 seconds...")
-            sleep(3)
-        end
-    end
-end
-
-local function refuel()
-    status = "Refueling"
-    sendMessage()
-
+function Inventory.refuel()
+    State.status = "Refueling"
+    Communication.sendUpdate()
+    
     for slot = 1, 16 do
         turtle.select(slot)
         local count = turtle.getItemCount(slot)
-
-        if count > 0 then
-            if turtle.refuel(0) then
-                turtle.refuel(count)
-                print("Refueled with slot " .. slot .. " (" .. count .. " items)")
-            end
+        if count > 0 and turtle.refuel(0) then
+            turtle.refuel(count)
+            print("Refueled with slot " .. slot)
         end
     end
-
+    
     turtle.select(1)
 end
 
-local function unload()
+function Inventory.unload()
     for i = 1, 16 do
-        status = "Unloading"
-        sendMessage()
+        State.status = "Unloading"
+        Communication.sendUpdate()
         turtle.select(i)
         turtle.dropUp()
     end
     turtle.select(1)
 end
 
-local function updateForComputer(height)
-    local data = {
-        type = "updateLayer",
-        turtleName = turtleName,
-        height = height,
-        chunkNumber = chunkNumber
-    }
-    rednet.broadcast(textutils.serialize(data), "MT")
+function Inventory.checkAndUnload()
+    if Inventory.isFull() then
+        Inventory.refuel()
+        
+        local x, y, z, dir = State.x, State.y, State.z, State.direction
+        Navigation.goToPosition(
+            State.chestCoords.x,
+            State.chestCoords.y - 1,
+            State.chestCoords.z,
+            State.chestCoords.direction
+        )
+        
+        Inventory.unload()
+        Movement.turnLeft()
+        Movement.turnLeft()
+        
+        Navigation.goToPosition(x, y, z, dir)
+    end
 end
 
 -- ============================================================================
--- BEFEHLSSYSTEM
+-- COMMAND SYSTEM
 -- ============================================================================
 
--- Lauscht kontinuierlich auf Befehle vom Master
-local function commandListener()
+local Commands = {}
+
+function Commands.listen()
     while true do
         local id, msg = rednet.receive("TURTLE_CMD")
         if msg then
             local success, message = pcall(textutils.unserialize, msg)
             if success and message.type == "command" then
-                currentCommand = message.command
-                commandHandled = false
-                log:logDebug(turtleName, "Received command: " .. message.command)
-                print(">>> COMMAND RECEIVED: " .. message.command .. " <<<")
+                State.currentCommand = message.command
+                State.commandHandled = false
+                log:logDebug(State.turtleName, "Received command: " .. message.command)
+                print(">>> COMMAND: " .. message.command .. " <<<")
             end
         end
         os.sleep(0.1)
     end
 end
 
--- Führt den aktuellen Befehl aus
-local function executeCommand()
-    if not currentCommand or commandHandled then
+function Commands.execute()
+    if not State.currentCommand or State.commandHandled then
         return false
     end
-
-    print("Executing command: " .. currentCommand)
-    status = "Command: " .. currentCommand
-    sendMessage()
-
-    if currentCommand == "returnToBase" then
-        status = "Returning to Base"
-        sendMessage()
-
-        local baseX = chestCoords.x
-        local baseY = chestCoords.y - 1
-        local baseZ = chestCoords.z
-        local baseDir = chestCoords.direction
-
-        log:logDebug(turtleName, "Going to base at X:" .. baseX .. " Y:" .. baseY .. " Z:" .. baseZ)
-        goToPosition(baseX, baseY, baseZ, baseDir)
-
-        status = "At Base"
-        sendMessage()
-        print("Arrived at base. Waiting for further commands...")
-
-        while currentCommand == "returnToBase" do
-            os.sleep(1)
-        end
-
-    elseif currentCommand == "resumeMining" then
-        status = "Resuming Mining"
-        sendMessage()
-        print("Requesting chunk reassignment...")
-
-        -- WICHTIG: Chunk freigeben für Neuzuweisung
-        chunkNumber = 0
-
-        getGPS()
-        direction = getDirection()
-
-        -- Neue Verbindung zum Master herstellen für Chunk-Zuweisung
-        connectToMaster()
-
-        print("Chunk reassigned, continuing mining...")
-
-        -- WICHTIG: Signal, dass Mining neu gestartet werden muss!
-        commandHandled = true
-        currentCommand = nil
-
-        -- Wirf einen Fehler um den aktuellen Mining-Loop zu beenden
-        error("RESTART_MINING")
+    
+    print("Executing: " .. State.currentCommand)
+    State.status = "Command: " .. State.currentCommand
+    Communication.sendUpdate()
+    
+    if State.currentCommand == "returnToBase" then
+        Commands.returnToBase()
+    elseif State.currentCommand == "resumeMining" then
+        Commands.resumeMining()
     end
-
-    commandHandled = true
-    currentCommand = nil
+    
+    State.commandHandled = true
+    State.currentCommand = nil
     return true
 end
 
--- Prüft ob ein Befehl ausgeführt werden muss
-local function checkForCommands()
-    if currentCommand and not commandHandled then
-        return executeCommand()
+function Commands.returnToBase()
+    State.status = "Returning to Base"
+    Communication.sendUpdate()
+    
+    Navigation.goToPosition(
+        State.chestCoords.x,
+        State.chestCoords.y - 1,
+        State.chestCoords.z,
+        State.chestCoords.direction
+    )
+    
+    State.status = "At Base"
+    Communication.sendUpdate()
+    print("At base. Waiting for commands...")
+    
+    while State.currentCommand == "returnToBase" do
+        os.sleep(1)
+    end
+end
+
+function Commands.resumeMining()
+    State.status = "Resuming Mining"
+    Communication.sendUpdate()
+    print("Requesting chunk reassignment...")
+    
+    State.chunkNumber = 0
+    Utils.updateGPS()
+    State.direction = Navigation.detectDirection()
+    
+    Communication.connectToMaster()
+    
+    print("Chunk reassigned, restarting mining...")
+    State.restartMining = true
+end
+
+function Commands.check()
+    if State.currentCommand and not State.commandHandled then
+        return Commands.execute()
     end
     return false
 end
 
-local function mineStrip(length)
+-- ============================================================================
+-- MINING OPERATIONS
+-- ============================================================================
+
+local Mining = {}
+
+function Mining.strip(length)
     for i = 1, length do
-        -- Prüfe auf Befehle vor jedem Schritt
-        if checkForCommands() then
-            -- Befehl wurde ausgeführt, setze fort
-            if currentCommand == "pauseMining" or currentCommand == "emergencyStop" then
-                return false -- Mining unterbrochen
-            end
-        end
-
-        status = "Mining"
-        sendMessage()
-
-        if isInventoryFull() then
-            refuel()
-            local x, y, z, dir = currentX, currentY, currentZ, direction
-            goToPosition(chestCoords.x, chestCoords.y - 1, chestCoords.z, chestCoords.direction)
-            unload()
-            turnLeft()
-            turnLeft()
-            goToPosition(x, y, z, dir)
-        end
-
-        -- SICHERE Mining-Operationen
-        safeDigUp()
-        safeDigDown()
-        forward()
-        safeDigUp()
-        safeDigDown()
-    end
-    return true
-end
-
-local function mineTripleLayer(length, width)
-    for x = 1, length do
-        -- Prüfe auf Befehle
-        if checkForCommands() then
-            if currentCommand == "pauseMining" or currentCommand == "emergencyStop" then
-                return false
-            end
-        end
-
-        if not mineStrip(width - 1) then
-            return false -- Unterbrochen
-        end
-
-        if x < length then
-            if x % 2 == 1 then
-                safeDigUp()
-                safeDigDown()
-                turnRight()
-                forward()
-                turnRight()
-                safeDigUp()
-                safeDigDown()
-            else
-                safeDigUp()
-                safeDigDown()
-                turnLeft()
-                forward()
-                turnLeft()
-                safeDigUp()
-                safeDigDown()
-            end
-        end
-    end
-
-    goToPosition(startCoords.x, currentY, startCoords.z, 2)
-    return true
-end
-
-local function quarry(length, width, height, startDirection)
-    local layers = math.ceil(height / 3)
-
-    for i = 1, layers do
-        -- Prüfe auf Befehle vor jeder Layer
-        if checkForCommands() then
-            if currentCommand == "pauseMining" or currentCommand == "emergencyStop" then
-                print("Mining interrupted by command")
-                return false
-            end
-        end
-
-        updateForComputer(currentY)
-
-        if not mineTripleLayer(length, width) then
-            print("Layer interrupted")
+        if State.restartMining then
             return false
         end
-
-        if i < layers then
-            for d = 1, 3 do
-                if currentY > -60 then
-                    down()
-                end
+        
+        if Commands.check() then
+            if State.currentCommand == "pauseMining" or 
+               State.currentCommand == "emergencyStop" or 
+               State.restartMining then
+                return false
             end
         end
+        
+        State.status = "Mining"
+        Communication.sendUpdate()
+        
+        Inventory.checkAndUnload()
+        
+        Movement.safeDigUp()
+        Movement.safeDigDown()
+        Movement.forward()
+        Movement.safeDigUp()
+        Movement.safeDigDown()
     end
     return true
 end
 
+function Mining.tripleLayer(length, width)
+    for x = 1, length do
+        if State.restartMining then
+            return false
+        end
+        
+        if Commands.check() then
+            if State.currentCommand == "pauseMining" or 
+               State.currentCommand == "emergencyStop" or 
+               State.restartMining then
+                return false
+            end
+        end
+        
+        if not Mining.strip(width - 1) then
+            return false
+        end
+        
+        if x < length then
+            Movement.safeDigUp()
+            Movement.safeDigDown()
+            
+            if x % 2 == 1 then
+                Movement.turnRight()
+                Movement.forward()
+                Movement.turnRight()
+            else
+                Movement.turnLeft()
+                Movement.forward()
+                Movement.turnLeft()
+            end
+            
+            Movement.safeDigUp()
+            Movement.safeDigDown()
+        end
+    end
+    
+    Navigation.goToPosition(State.startCoords.x, State.y, State.startCoords.z, DIRECTION.EAST)
+    return true
+end
+
+function Mining.quarry(length, width, height)
+    local layers = math.ceil(height / 3)
+    
+    for i = 1, layers do
+        if State.restartMining then
+            return false
+        end
+        
+        if Commands.check() then
+            if State.currentCommand == "pauseMining" or 
+               State.currentCommand == "emergencyStop" or 
+               State.restartMining then
+                return false
+            end
+        end
+        
+        Communication.sendLayerUpdate(State.y)
+        
+        if not Mining.tripleLayer(length, width) then
+            return false
+        end
+        
+        if i < layers and State.y > -60 then
+            for d = 1, 3 do
+                Movement.down()
+            end
+        end
+    end
+    
+    return true
+end
+
 -- ============================================================================
--- PROGRAM START
+-- MAIN PROGRAM
 -- ============================================================================
 
-getGPS()
-direction = getDirection()
-if currentX and currentY and currentZ and direction then
-
-    print("Starting at X:" .. currentX .. " Y:" .. currentY .. " Z:" .. currentZ,
-        "facing direction:" .. directionToString(direction))
-
-    -- Haupt-Loop mit parallelem Command-Listening
-    parallel.waitForAny( -- Command Listener läuft kontinuierlich
-    commandListener, -- Mining-Loop
-    -- Mining-Loop
-    function()
-        while true do
-            -- Schütze den Mining-Loop vor Restart-Errors
-            local success, err = pcall(function()
-                connectToMaster()
-                sleepForSeconds(3)
-
-                -- Starte Mining
+local function main()
+    -- Initial setup
+    Utils.updateGPS()
+    State.direction = Navigation.detectDirection()
+    
+    if not State.x or not State.y or not State.z or not State.direction then
+        error("Could not determine initial position or direction")
+    end
+    
+    print(string.format(
+        "Starting at X:%d Y:%d Z:%d facing %s",
+        State.x, State.y, State.z, Utils.directionToString(State.direction)
+    ))
+    
+    -- Main loop with parallel command listening
+    parallel.waitForAny(
+        Commands.listen,
+        function()
+            while true do
+                State.restartMining = false
+                
+                Communication.connectToMaster()
+                Utils.sleep(3)
+                
                 print("Starting quarry operation...")
-                local miningSuccess = quarry(16, 16, startCoords.y, direction)
-
-                if not miningSuccess then
-                    print("Quarry interrupted. Waiting for resume...")
-                    -- Warte bis Resume-Befehl kommt
-                    while currentCommand == "pauseMining" or currentCommand == "emergencyStop" or currentCommand ==
-                        "returnToBase" do
-                        os.sleep(1)
+                local success = Mining.quarry(16, 16, State.startCoords.y)
+                
+                if not success then
+                    if State.restartMining then
+                        print("Restarting with new chunk...")
+                    else
+                        print("Quarry interrupted, waiting...")
+                        while State.currentCommand == "pauseMining" or 
+                              State.currentCommand == "emergencyStop" or 
+                              State.currentCommand == "returnToBase" do
+                            os.sleep(1)
+                        end
                     end
-                end
-
-                -- Chunk fertig - neuen anfordern
-                print("Chunk completed. Requesting new chunk...")
-                sleep(2)
-            end)
-
-            -- Prüfe ob ein Restart angefordert wurde
-            if not success then
-                if err == "RESTART_MINING" then
-                    print("Restarting mining loop...")
-                    -- Loop startet von vorne
                 else
-                    -- Echter Fehler - nach oben propagieren
-                    error(err)
+                    print("Chunk completed, requesting new chunk...")
+                    sleep(2)
                 end
             end
         end
-    end)
-else
-    error("Could not determine initial position or direction.")
+    )
 end
+
+-- Start the program
+main()
