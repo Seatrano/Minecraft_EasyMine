@@ -814,32 +814,17 @@ function Commands.returnToBase()
 end
 
 function Commands.resumeMining()
-    print("=== RESUME MINING START ===")
     State.status = "Resuming Mining"
     Communication.sendUpdate()
-    print("Requesting chunk reassignment...")
-    
-    print("Freeing chunk...")
+
+    -- Reset state only
     State.chunkNumber = 0
-    
-    print("Updating GPS...")
-    Utils.updateGPS()
-    print("Current position: X:" .. State.x .. " Y:" .. State.y .. " Z:" .. State.z)
-    
-    print("Detecting direction...")
-    State.direction = Navigation.detectDirection()
-    print("Direction: " .. Utils.directionToString(State.direction))
-    
-    print("Connecting to master...")
-    Communication.connectToMaster()
-    
-    print("Chunk reassigned to: " .. State.chunkNumber)
-    print("Setting restart flag...")
     State.restartMining = true
-    
-    print("Throwing restart error...")
+
+    -- Force controlled restart
     error("RESTART_MINING")
 end
+
 
 function Commands.check()
     if State.currentCommand and not State.commandHandled then
