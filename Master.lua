@@ -198,6 +198,12 @@ end
 function ConnectionHandler.handleNewConnection(id, message, now)
     local turtleName = message.turtleName
     
+    -- Check if this is actually a known turtle reconnecting (even if reconnect=false)
+    if turtleName and masterConfig.turtles[turtleName] then
+        log:logDebug("Master", "Known turtle " .. turtleName .. " connecting (treating as reconnect)")
+        return ConnectionHandler.handleReconnection(id, message, now)
+    end
+    
     -- Generate or reserve name
     if not turtleName or turtleName == "" then
         turtleName = NameManager.generateNewName()

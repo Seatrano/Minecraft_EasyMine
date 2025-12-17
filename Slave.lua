@@ -97,7 +97,6 @@ function Utils.stableGPS()
     end
 end
 
--- FIX: Random delay helper
 function Utils.randomDelay(minSeconds, maxSeconds)
     local delay = minSeconds + math.random() * (maxSeconds - minSeconds)
     os.sleep(delay)
@@ -132,7 +131,6 @@ function Communication.sendLayerUpdate(height)
     rednet.broadcast(textutils.serialize(data), "MT")
 end
 
--- FIX: Release chunk before reconnecting
 function Communication.releaseChunk()
     if State.chunkNumber and State.chunkNumber > 0 then
         local data = {
@@ -153,7 +151,7 @@ function Communication.connectToMaster()
         turtleName = State.turtleName,
         coordinates = {x = State.x, y = State.y, z = State.z},
         direction = State.direction,
-        reconnect = (State.chunkNumber and State.chunkNumber > 0) -- FIX: Signal reconnection
+        reconnect = (State.chunkNumber and State.chunkNumber > 0)
     }
     
     log:logDebug(State.turtleName, string.format(
@@ -203,7 +201,6 @@ function Communication.connectToMaster()
         retryCount = retryCount + 1
         log:logDebug(State.turtleName, "No response, retry " .. retryCount .. "/" .. maxRetries)
         
-        -- FIX: Add random delay to prevent all turtles retrying simultaneously
         Utils.randomDelay(2, 4)
         rednet.broadcast(textutils.serialize(data), "MT")
     end
@@ -232,7 +229,6 @@ function TurtleDetection.isBelow()
     return success and data and data.name == TURTLE_BLOCK_NAME
 end
 
--- FIX: Add random delays to prevent synchronized waiting
 function TurtleDetection.waitForClearAhead(maxWait)
     maxWait = maxWait or WAIT_FOR_TURTLE_TIMEOUT
     local waited = 0
@@ -242,7 +238,6 @@ function TurtleDetection.waitForClearAhead(maxWait)
         Communication.sendUpdate()
         print("Turtle ahead, waiting...")
         
-        -- FIX: Random delay between 0.5 and 2 seconds
         local delay = 0.5 + math.random() * 1.5
         os.sleep(delay)
         waited = waited + delay
@@ -355,19 +350,17 @@ end
 -- MOVEMENT - Avoidance Strategies
 -- ============================================================================
 
--- FIX: Completely rewritten sideways avoidance with proper coordinate tracking
 function Movement.tryAvoidSideways()
     print("Attempting sideways avoidance...")
     
-    -- Save original position and direction
     local origDir = State.direction
     
-    -- Try right maneuver: Right -> Forward -> Left -> Forward -> Left -> Forward -> Right
+    -- Try right maneuver
     Movement.turnRight()
     if not TurtleDetection.isAhead() and turtle.forward() then
         Movement.updatePositionForward()
         
-        Utils.randomDelay(1, 3) -- Random delay
+        Utils.randomDelay(1, 3)
         
         Movement.turnLeft()
         if not TurtleDetection.isAhead() and turtle.forward() then
@@ -381,7 +374,6 @@ function Movement.tryAvoidSideways()
                 print("Successfully avoided via right")
                 return true
             else
-                -- Failed at third step - go back
                 Movement.turnRight()
                 turtle.forward()
                 Movement.updatePositionForward()
@@ -391,23 +383,21 @@ function Movement.tryAvoidSideways()
                 Movement.turnLeft()
             end
         else
-            -- Failed at second step - go back
             Movement.turnRight()
             turtle.forward()
             Movement.updatePositionForward()
             Movement.turnLeft()
         end
     else
-        -- Failed at first step
         Movement.turnLeft()
     end
     
-    -- Try left maneuver: Left -> Forward -> Right -> Forward -> Right -> Forward -> Left
+    -- Try left maneuver
     Movement.turnLeft()
     if not TurtleDetection.isAhead() and turtle.forward() then
         Movement.updatePositionForward()
         
-        Utils.randomDelay(1, 3) -- Random delay
+        Utils.randomDelay(1, 3)
         
         Movement.turnRight()
         if not TurtleDetection.isAhead() and turtle.forward() then
@@ -421,7 +411,6 @@ function Movement.tryAvoidSideways()
                 print("Successfully avoided via left")
                 return true
             else
-                -- Failed at third step - go back
                 Movement.turnLeft()
                 turtle.forward()
                 Movement.updatePositionForward()
@@ -431,14 +420,12 @@ function Movement.tryAvoidSideways()
                 Movement.turnRight()
             end
         else
-            -- Failed at second step - go back
             Movement.turnLeft()
             turtle.forward()
             Movement.updatePositionForward()
             Movement.turnRight()
         end
     else
-        -- Failed at first step
         Movement.turnRight()
     end
     
@@ -446,11 +433,9 @@ function Movement.tryAvoidSideways()
     return false
 end
 
--- FIX: New vertical avoidance with random delays
 function Movement.tryAvoidVertical()
     print("Attempting vertical avoidance...")
     
-    -- Random delay before attempting
     Utils.randomDelay(0.5, 2)
     
     -- Try going up and around
@@ -469,12 +454,10 @@ function Movement.tryAvoidVertical()
                 print("Successfully avoided via up")
                 return true
             else
-                -- Can't go down, stay up and move forward was successful
                 print("Avoided up, staying elevated")
                 return true
             end
         else
-            -- Can't move forward, go back down
             if not TurtleDetection.isBelow() then
                 turtle.down()
                 State.y = State.y - 1
@@ -499,12 +482,10 @@ function Movement.tryAvoidVertical()
                 print("Successfully avoided via down")
                 return true
             else
-                -- Can't go up, stay down and move forward was successful
                 print("Avoided down, staying lower")
                 return true
             end
         else
-            -- Can't move forward, go back up
             if not TurtleDetection.isAbove() then
                 turtle.up()
                 State.y = State.y + 1
@@ -525,7 +506,6 @@ function Movement.up()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
-        -- CHECK: Command override
         if State.currentCommand == "resumeMining" and State.status:find("Returning") then
             print("Movement interrupted by resumeMining!")
             error("COMMAND_OVERRIDE")
@@ -558,7 +538,6 @@ function Movement.down()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
-        -- CHECK: Command override
         if State.currentCommand == "resumeMining" and State.status:find("Returning") then
             print("Movement interrupted by resumeMining!")
             error("COMMAND_OVERRIDE")
@@ -591,7 +570,6 @@ function Movement.forward()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
-        -- CHECK: Command override
         if State.currentCommand == "resumeMining" and State.status:find("Returning") then
             print("Movement interrupted by resumeMining!")
             error("COMMAND_OVERRIDE")
@@ -599,7 +577,6 @@ function Movement.forward()
         
         if TurtleDetection.isAhead() then
             if not TurtleDetection.waitForClearAhead(10) then
-                -- FIX: Try vertical avoidance first, then sideways
                 if not Movement.tryAvoidVertical() and not Movement.tryAvoidSideways() then
                     attempts = attempts + 1
                 else
@@ -731,27 +708,21 @@ function Navigation.detectDirection()
     return State.direction
 end
 
--- FIX: New parking logic for returnToBase
 function Navigation.parkAtBase()
-    -- Calculate parking position in a grid pattern
-    -- Extract turtle number from name (e.g., "MT5" -> 5)
     local turtleNum = tonumber(State.turtleName:match("%d+")) or 1
     
-    -- Grid layout: 4x4 grid, 1 block spacing
     local gridSize = 4
     local spacing = 1
     
     local row = math.floor((turtleNum - 1) / gridSize)
     local col = (turtleNum - 1) % gridSize
     
-    -- Calculate offset from chest position
     local offsetX = col * spacing
     local offsetZ = row * spacing
     
-    -- Park next to chest with calculated offsets
     local parkX = State.chestCoords.x + offsetX
     local parkZ = State.chestCoords.z + offsetZ
-    local parkY = State.chestCoords.y - 1 -- One below chest
+    local parkY = State.chestCoords.y - 1
     
     print(string.format("Parking at grid position [%d,%d]: X:%d Z:%d", row, col, parkX, parkZ))
     
@@ -778,7 +749,6 @@ function Inventory.dropTrash()
 end
 
 function Inventory.sort()
-    -- Combine stacks
     for i = 1, 16 do
         local itemI = turtle.getItemDetail(i)
         if itemI then
@@ -792,7 +762,6 @@ function Inventory.sort()
         end
     end
     
-    -- Compact empty slots
     for i = 1, 16 do
         if turtle.getItemCount(i) == 0 then
             for j = i + 1, 16 do
@@ -945,7 +914,6 @@ function Commands.returnToBase()
     print("Going to base...")
     
     local success, err = pcall(function()
-        -- FIX: Use new parking logic
         Navigation.parkAtBase()
     end)
     
@@ -978,20 +946,36 @@ end
 function Commands.resumeMining()
     State.status = "Resuming Mining"
     Communication.sendUpdate()
-
+    
+    log:logDebug(State.turtleName, "Starting resumeMining - releasing chunk " .. State.chunkNumber)
+    
+    -- Release current chunk
     Communication.releaseChunk()
-    os.sleep(1)
-
+    
+    -- FIX: Random delay to prevent all turtles reconnecting simultaneously
+    -- Different turtles will wait different amounts of time (3-8 seconds)
+    local delay = 3 + math.random() * 5
+    log:logDebug(State.turtleName, string.format("Waiting %.1f seconds before reconnecting", delay))
+    
+    for i = 1, math.ceil(delay) do
+        os.sleep(1)
+        if i % 2 == 0 then
+            print(string.format("Reconnecting in %d seconds...", math.ceil(delay) - i))
+        end
+    end
+    
+    -- Clear chunk number AFTER releasing and waiting
     State.chunkNumber = 0
     State.restartMining = true
-
-    -- FIX: clear command state
+    
+    -- Clear command state
     State.currentCommand = nil
     State.commandHandled = true
-
+    
+    log:logDebug(State.turtleName, "Ready to reconnect and get new chunk")
+    
     error("RESTART_MINING")
 end
-
 
 function Commands.check()
     if State.currentCommand and not State.commandHandled then
@@ -1112,7 +1096,6 @@ end
 -- ============================================================================
 
 local function main()
-    -- Initial setup
     Utils.updateGPS()
     State.direction = Navigation.detectDirection()
     
@@ -1125,7 +1108,6 @@ local function main()
         State.x, State.y, State.z, Utils.directionToString(State.direction)
     ))
     
-    -- Main loop with parallel command listening
     parallel.waitForAny(
         Commands.listen,
         function()
@@ -1180,5 +1162,4 @@ local function main()
     )
 end
 
--- Start the program
 main()
