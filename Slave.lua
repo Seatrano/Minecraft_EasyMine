@@ -738,16 +738,20 @@ function Commands.execute()
         success, err = pcall(Commands.returnToBase)
         
         -- Wenn durch neuen Befehl unterbrochen
-        if not success and (err == "COMMAND_OVERRIDE" or err == "RESTART_MINING") then
-            print("returnToBase was interrupted!")
-            -- Prüfe ob ein neuer Befehl da ist
-            if State.currentCommand ~= cmd then
-                print("New command detected: " .. State.currentCommand)
-                State.commandHandled = false
-                return Commands.execute() -- Führe neuen Befehl aus
+        if not success then
+            local errStr = tostring(err)
+            if errStr:find("COMMAND_OVERRIDE") or errStr:find("RESTART_MINING") then
+                print("returnToBase was interrupted!")
+                -- Prüfe ob ein neuer Befehl da ist
+                if State.currentCommand ~= cmd then
+                    print("New command detected: " .. State.currentCommand)
+                    State.commandHandled = false
+                    return Commands.execute() -- Führe neuen Befehl aus
+                end
+            else
+                -- Echter Fehler
+                error(err)
             end
-        elseif not success then
-            error(err) -- Echter Fehler
         end
         
         -- Nach erfolgreichem returnToBase - prüfe auf neuen Befehl
@@ -782,9 +786,15 @@ function Commands.returnToBase()
     end)
     
     -- Wenn Error durch neuen Befehl, propagiere ihn
-    if not success and (err == "COMMAND_OVERRIDE" or err == "RESTART_MINING") then
-        print("returnToBase interrupted by new command!")
-        error(err)
+    if not success then
+        local errStr = tostring(err)
+        if errStr:find("COMMAND_OVERRIDE") or errStr:find("RESTART_MINING") then
+            print("returnToBase interrupted by new command!")
+            error(err)
+        else
+            -- Anderer Fehler
+            error(err)
+        end
     end
     
     State.status = "At Base"
@@ -1009,11 +1019,14 @@ local function main()
                 
                 -- Check if restart was requested via error
                 if not success then
-                    if err == "RESTART_MINING" or err == "COMMAND_OVERRIDE" then
+                    -- Error enthält Stack-Trace, deshalb string.find() verwenden
+                    local errStr = tostring(err)
+                    if errStr:find("RESTART_MINING") or errStr:find("COMMAND_OVERRIDE") then
                         print("Restarting mining loop with new chunk...")
                         -- Loop continues from top
                     else
                         -- Real error - propagate it
+                        print("Real error occurred: " .. errStr)
                         error(err)
                     end
                 end
