@@ -1,72 +1,117 @@
+-- ============================================================================
+-- MASTER.LUA - Central Coordinator for Mining Turtles
+-- ============================================================================
+
 local DeviceFinder = require("helper.getDevices")
-local finder = DeviceFinder.new()
 local monitorFunctions = require("helper.monitorFunctions")
-local monitor = monitorFunctions.new()
 local logger = require("helper.logger")
-local log = logger.new()
 local MasterConfig = require("helper.MasterConfig")
 
+-- ============================================================================
+-- INITIALIZATION
+-- ============================================================================
+
+local finder = DeviceFinder.new()
+local monitor = monitorFunctions.new()
+local log = logger.new()
 local masterConfig = MasterConfig:new()
-
-local configName = "masterConfig.txt"
-
-if not masterConfig:load(configName) then
-    log:logDebug("Master", "First start – creating initial config/state")
-    masterConfig:save(configName)
-end
 
 finder:openModem()
 
-local computerId = os.getComputerID()
+local CONFIG_FILE = "masterConfig.txt"
 
--- FIX: Enhanced lock mechanism with name reservation
-local assignmentLock = false
-local assignmentQueue = {}
-local reservedNames = {} -- FIX: Track names being assigned
+-- ============================================================================
+-- STATE MANAGEMENT
+-- ============================================================================
 
-local function getNumber(prompt)
-    write(prompt)
-    return tonumber(read())
-end
+local State = {
+    -- Identity
+    computerId = os.getComputerID(),
+    
+    -- Locking mechanism for chunk assignment
+    assignmentLock = false,
+    assignmentQueue = {},
+    reservedNames = {}, -- Track names being assigned to prevent duplicates
+    
+    -- Timing
+    chunkLastCheck = os.epoch("utc"),
+    turtleLastCheck = os.epoch("utc"),
+    
+    -- Monitor
+    mon = nil,
+    monitorWidth = 0,
+    monitorHeight = 0
+}
 
-local chunkLastCheck = os.epoch("utc")
-local turtleLastCheck = os.epoch("utc")
+-- ============================================================================
+-- INITIALIZATION - Config & Monitor
+-- ============================================================================
 
-local mon = finder:getMonitor()
-local w, h = mon.getSize()
-
-mon.clear()
-mon.setCursorPos(1, 1)
-mon.write("Warte auf Daten...")
-
-local function directionToString(dir)
-    if dir == 1 then
-        return "North"
-    elseif dir == 2 then
-        return "East"
-    elseif dir == 3 then
-        return "South"
-    elseif dir == 4 then
-        return "West"
-    else
-        return "?"
+local function initializeConfig()
+    if not masterConfig:load(CONFIG_FILE) then
+        log:logDebug("Master", "First start - creating initial config")
+        masterConfig:save(CONFIG_FILE)
     end
 end
 
--- FIX: Improved name generation with immediate reservation
-local function getNewTurtleName()
+local function initializeMonitor()
+    State.mon = finder:getMonitor()
+    if State.mon then
+        State.monitorWidth, State.monitorHeight = State.mon.getSize()
+        State.mon.clear()
+        State.mon.setCursorPos(1, 1)
+        State.mon.write("Waiting for data...")
+    end
+end
+
+-- ============================================================================
+-- UTILITY FUNCTIONS
+-- ============================================================================
+
+local Utils = {}
+
+function Utils.directionToString(dir)
+    local directions = {"North", "East", "South", "West"}
+    return directions[dir] or "?"
+end
+
+function Utils.extractTurtleNumber(name)
+    return tonumber(name:match("%d+")) or 0
+end
+
+function Utils.sortTurtlesByNumber(turtles)
+    local sorted = {}
+    for _, t in pairs(turtles) do
+        table.insert(sorted, t)
+    end
+    
+    table.sort(sorted, function(a, b)
+        return Utils.extractTurtleNumber(a.turtleName) < Utils.extractTurtleNumber(b.turtleName)
+    end)
+    
+    return sorted
+end
+
+-- ============================================================================
+-- NAME MANAGEMENT
+-- ============================================================================
+
+local NameManager = {}
+
+function NameManager.generateNewName()
     local maxNumber = 0
     
-    -- Check both existing turtles AND reserved names
+    -- Check existing turtles
     for name, _ in pairs(masterConfig.turtles) do
-        local number = tonumber(name:match("%d+")) or 0
+        local number = Utils.extractTurtleNumber(name)
         if number > maxNumber then
             maxNumber = number
         end
     end
     
-    for name, _ in pairs(reservedNames) do
-        local number = tonumber(name:match("%d+")) or 0
+    -- Check reserved names
+    for name, _ in pairs(State.reservedNames) do
+        local number = Utils.extractTurtleNumber(name)
         if number > maxNumber then
             maxNumber = number
         end
@@ -74,83 +119,111 @@ local function getNewTurtleName()
     
     local newName = "MT" .. (maxNumber + 1)
     
-    -- FIX: Immediately reserve this name
-    reservedNames[newName] = true
+    -- Reserve immediately
+    State.reservedNames[newName] = true
     
-    log:logDebug("Master", "Assigned new turtle name: " .. newName .. " (reserved)")
-    print("Assigning new turtle name " .. newName)
+    log:logDebug("Master", "Generated new turtle name: " .. newName .. " (reserved)")
+    print("Assigning new turtle name: " .. newName)
     
     return newName
 end
 
-local function sendConfigToTurtle(id, turtleName, chunkNumber)
+function NameManager.reserveName(name)
+    State.reservedNames[name] = true
+end
+
+function NameManager.confirmName(name)
+    State.reservedNames[name] = nil
+end
+
+function NameManager.getReservedCount()
+    local count = 0
+    for _ in pairs(State.reservedNames) do
+        count = count + 1
+    end
+    return count
+end
+
+-- ============================================================================
+-- COMMUNICATION
+-- ============================================================================
+
+local Communication = {}
+
+function Communication.sendConfig(turtleId, turtleName, chunkNumber)
     local payload = masterConfig:buildTurtleConfig(turtleName, chunkNumber)
-    rednet.send(id, textutils.serialize(payload), "C")
+    rednet.send(turtleId, textutils.serialize(payload), "C")
     log:logDebug("Master", "Sent config to " .. turtleName .. " for chunk " .. chunkNumber)
 end
 
--- FIX: Enhanced connection processing with name reservation cleanup
-local function processNewConnection(id, message, now)
-    local isReconnect = message.reconnect or false
+-- ============================================================================
+-- CONNECTION HANDLING
+-- ============================================================================
+
+local ConnectionHandler = {}
+
+function ConnectionHandler.handleReconnection(id, message, now)
     local turtleName = message.turtleName
     
-    -- FIX: Handle reconnect vs new connection differently
-    if isReconnect and turtleName and masterConfig.turtles[turtleName] then
-        log:logDebug("Master", "Processing reconnection for existing turtle: " .. turtleName)
-        
-        -- This is a known turtle reconnecting - send config immediately
-        local turtle = masterConfig.turtles[turtleName]
-        
-        -- Update position
-        turtle.coordinates = {
-            x = message.coordinates.x,
-            y = message.coordinates.y,
-            z = message.coordinates.z
-        }
-        turtle.direction = message.direction
-        turtle.lastUpdate = now
-        turtle.status = "reconnecting"
-        
-        -- If turtle lost its chunk, find a new one
-        if not turtle.chunkNumber or turtle.chunkNumber == 0 then
-            log:logDebug("Master", "Reconnecting turtle " .. turtleName .. " needs new chunk")
-            local chunk = masterConfig:findChunk(turtleName)
-            turtle.chunkNumber = chunk.chunkNumber
-        end
-        
-        -- Send config
-        sendConfigToTurtle(id, turtleName, turtle.chunkNumber)
-        masterConfig:save(configName)
-        
-        return
+    log:logDebug("Master", "Processing reconnection for: " .. turtleName)
+    
+    local turtle = masterConfig.turtles[turtleName]
+    if not turtle then
+        log:logDebug("Master", "Unknown turtle reconnecting, treating as new")
+        return ConnectionHandler.handleNewConnection(id, message, now)
     end
     
-    -- New connection or unnamed turtle
+    -- Update position
+    turtle.coordinates = {
+        x = message.coordinates.x,
+        y = message.coordinates.y,
+        z = message.coordinates.z
+    }
+    turtle.direction = message.direction
+    turtle.lastUpdate = now
+    turtle.status = "reconnecting"
+    
+    -- Assign new chunk if needed
+    if not turtle.chunkNumber or turtle.chunkNumber == 0 then
+        log:logDebug("Master", "Reconnecting turtle needs new chunk")
+        local chunk = masterConfig:findChunk(turtleName)
+        turtle.chunkNumber = chunk.chunkNumber
+    end
+    
+    -- Send configuration
+    Communication.sendConfig(id, turtleName, turtle.chunkNumber)
+    masterConfig:save(CONFIG_FILE)
+end
+
+function ConnectionHandler.handleNewConnection(id, message, now)
+    local turtleName = message.turtleName
+    
+    -- Generate or reserve name
     if not turtleName or turtleName == "" then
-        turtleName = getNewTurtleName()
+        turtleName = NameManager.generateNewName()
     else
-        -- FIX: Reserve the provided name to prevent duplicates
-        reservedNames[turtleName] = true
+        NameManager.reserveName(turtleName)
     end
     
-    log:logDebug("Master", "Processing new connection for " .. turtleName)
+    log:logDebug("Master", "Processing new connection for: " .. turtleName)
     
-    -- LOCK SETZEN
-    assignmentLock = true
+    -- LOCK ASSIGNMENT
+    State.assignmentLock = true
     
-    -- Turtle registrieren oder reaktivieren
+    -- Initialize or reactivate turtle
     if not masterConfig.turtles[turtleName] then
         masterConfig.turtles[turtleName] = {}
     else
-        -- WICHTIG: Alten Chunk freigeben wenn Turtle bereits existiert
+        -- Release old chunk if exists
         local oldChunkNum = masterConfig.turtles[turtleName].chunkNumber
         if oldChunkNum and masterConfig.chunks[oldChunkNum] then
-            log:logDebug("Master", "Releasing old chunk " .. oldChunkNum .. " from " .. turtleName)
+            log:logDebug("Master", "Releasing old chunk " .. oldChunkNum)
             masterConfig.chunks[oldChunkNum].workedByTurtleName = nil
             masterConfig.chunks[oldChunkNum].chunkLastUpdate = 0
         end
     end
     
+    -- Update turtle data
     masterConfig.turtles[turtleName].turtleName = turtleName
     masterConfig.turtles[turtleName].coordinates = {
         x = message.coordinates.x,
@@ -160,42 +233,51 @@ local function processNewConnection(id, message, now)
     masterConfig.turtles[turtleName].direction = message.direction
     masterConfig.turtles[turtleName].lastUpdate = now
     masterConfig.turtles[turtleName].status = "connecting"
-
-    -- Chunk zuweisen (KRITISCHER BEREICH)
+    
+    -- Assign chunk (CRITICAL SECTION)
     local chunk = masterConfig:findChunk(turtleName)
     masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
     
-    -- Sofort speichern um Race Conditions zu vermeiden
-    masterConfig:save(configName)
+    -- Save immediately to prevent race conditions
+    masterConfig:save(CONFIG_FILE)
     
     log:logDebug("Master", "Assigned chunk " .. chunk.chunkNumber .. " to " .. turtleName)
-
-    -- Konfiguration senden
-    sendConfigToTurtle(id, turtleName, chunk.chunkNumber)
     
-    -- FIX: Move name from reserved to confirmed
-    reservedNames[turtleName] = nil
-
-    -- LOCK FREIGEBEN
-    assignmentLock = false
+    -- Send configuration
+    Communication.sendConfig(id, turtleName, chunk.chunkNumber)
+    
+    -- Confirm name reservation
+    NameManager.confirmName(turtleName)
+    
+    -- UNLOCK ASSIGNMENT
+    State.assignmentLock = false
     log:logDebug("Master", "Released assignment lock for " .. turtleName)
 end
 
--- Verarbeitet die Queue
-local function processAssignmentQueue()
-    if assignmentLock or #assignmentQueue == 0 then
+function ConnectionHandler.processQueue()
+    if State.assignmentLock or #State.assignmentQueue == 0 then
         return
     end
     
-    local next = table.remove(assignmentQueue, 1)
+    local next = table.remove(State.assignmentQueue, 1)
     if next then
         log:logDebug("Master", "Processing queued connection for " .. (next.message.turtleName or "unknown"))
-        processNewConnection(next.id, next.message, next.now)
+        
+        if next.message.reconnect and next.message.turtleName then
+            ConnectionHandler.handleReconnection(next.id, next.message, next.now)
+        else
+            ConnectionHandler.handleNewConnection(next.id, next.message, next.now)
+        end
     end
 end
 
--- FIX: New handler for chunk release messages
-local function handleChunkRelease(message, now)
+-- ============================================================================
+-- MESSAGE HANDLING
+-- ============================================================================
+
+local MessageHandler = {}
+
+function MessageHandler.handleChunkRelease(message, now)
     local turtleName = message.turtleName
     local chunkNumber = message.chunkNumber
     
@@ -213,7 +295,7 @@ local function handleChunkRelease(message, now)
             masterConfig.chunks[chunkNumber].chunkLastUpdate = 0
             log:logDebug("Master", "Chunk " .. chunkNumber .. " released successfully")
         else
-            log:logDebug("Master", "WARNING: Chunk " .. chunkNumber .. " was not owned by " .. turtleName)
+            log:logDebug("Master", "WARNING: Chunk " .. chunkNumber .. " not owned by " .. turtleName)
         end
     end
     
@@ -224,205 +306,259 @@ local function handleChunkRelease(message, now)
         masterConfig.turtles[turtleName].lastUpdate = now
     end
     
-    masterConfig:save(configName)
+    masterConfig:save(CONFIG_FILE)
 end
 
-local function sendMessageToMonitor()
-
-    while true do
-        local now = os.epoch("utc")
-
-        -- 1. Prüfe Chunks auf Timeout
-        if now - chunkLastCheck >= masterConfig.chunkTimeout then
-            chunkLastCheck = now
-            for _, chunk in ipairs(masterConfig.chunks) do
-                if chunk.chunkLastUpdate ~= nil and chunk.chunkLastUpdate > 0 and (now - chunk.chunkLastUpdate) >
-                    masterConfig.chunkTimeout then
-
-                    log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out. Releasing it.")
-
-                    -- Turtle auf offline setzen
-                    if chunk.workedByTurtleName and masterConfig.turtles[chunk.workedByTurtleName] then
-                        masterConfig.turtles[chunk.workedByTurtleName].status = "offline"
-                    end
-
-                    chunk.workedByTurtleName = nil
-                    chunk.chunkLastUpdate = 0
-                    masterConfig:save(configName)
-                end
-            end
-        end
-
-        -- 2. Prüfe Turtles auf Timeout
-        if now - turtleLastCheck >= masterConfig.turtleTimeout then
-            turtleLastCheck = now
-            for name, t in pairs(masterConfig.turtles) do
-                local last = t.lastUpdate or 0
-                if now - last > masterConfig.turtleTimeout then
-                    masterConfig.turtles[name].status = "offline"
-                end
-            end
-            masterConfig:save(configName)
-        end
-
-        local id, msg = rednet.receive("MT", 0.1)
-        if msg and id ~= computerId then
-            local success, message = pcall(textutils.unserialize, msg)
-            
-            if not success then
-                log:logDebug("Master", "Failed to deserialize message from ID " .. id)
-            else
-                -- FIX: Handle chunk release messages
-                if message.type == "releaseChunk" then
-                    handleChunkRelease(message, now)
-                    
-                elseif message.type == "newConnection" then
-                    -- Prüfe ob Lock aktiv ist
-                    log:logDebug("Master", "Received newConnection from ID " .. id)
-                    if assignmentLock then
-                        log:logDebug("Master", "Assignment locked - queuing connection request")
-                        table.insert(assignmentQueue, {
-                            id = id,
-                            message = message,
-                            now = now
-                        })
-                    else
-                        -- Lock frei - direkt verarbeiten
-                        processNewConnection(id, message, now)
-                    end
-
-                elseif message.type == "update" and message.turtleName ~= nil then
-                    local tName = message.turtleName
-                    
-                    if not masterConfig.turtles[tName] then
-                        -- Unbekannte Turtle - als neue Connection behandeln
-                        log:logDebug("Master", "Unknown turtle " .. tName .. " - treating as new connection")
-                        
-                        -- FIX: Treat as reconnection
-                        message.reconnect = true
-                        
-                        if assignmentLock then
-                            table.insert(assignmentQueue, {
-                                id = id,
-                                message = message,
-                                now = now
-                            })
-                        else
-                            processNewConnection(id, message, now)
-                        end
-                    else
-                        -- Bekannte Turtle - Update verarbeiten
-                        masterConfig.turtles[tName].coordinates = {
-                            x = message.coordinates.x,
-                            y = message.coordinates.y,
-                            z = message.coordinates.z
-                        }
-                        masterConfig.turtles[tName].direction = message.direction
-                        masterConfig.turtles[tName].fuelLevel = message.fuelLevel
-                        masterConfig.turtles[tName].status = message.status
-                        masterConfig.turtles[tName].lastUpdate = now
-                        
-                        -- Chunk-Update
-                        if message.chunkNumber and masterConfig.turtles[tName].chunkNumber ~= message.chunkNumber then
-                            masterConfig.turtles[tName].chunkNumber = message.chunkNumber
-                        end
-                        
-                        -- Chunk-LastUpdate aktualisieren
-                        local chunkNum = masterConfig.turtles[tName].chunkNumber
-                        if chunkNum and masterConfig.chunks[chunkNum] then
-                            masterConfig.chunks[chunkNum].chunkLastUpdate = now
-                        end
-                    end
-                    
-                    masterConfig:save(configName)
-
-                elseif message.type == "updateLayer" and message.turtleName ~= nil then
-                    -- Handler für Layer-Updates
-                    local tName = message.turtleName
-                    local height = message.height
-                    local chunkNum = message.chunkNumber
-                    
-                    if masterConfig.turtles[tName] and masterConfig.chunks[chunkNum] then
-                        masterConfig.chunks[chunkNum].currentChunkDepth = height
-                        masterConfig.chunks[chunkNum].chunkLastUpdate = now
-                        
-                        log:logDebug("Master", "Updated chunk " .. chunkNum .. " depth to " .. height)
-                        masterConfig:save(configName)
-                    else
-                        log:logDebug("Master", "Received updateLayer from unknown turtle/chunk: " .. tName)
-                    end
-                end
-            end
-        end
-        
-        -- Verarbeite wartende Turtles aus der Queue
-        processAssignmentQueue()
-
-        -- Hilfsfunktion: Zahl aus Turtle-Name extrahieren
-        local function turtleNumber(name)
-            return tonumber(name:match("%d+")) or 0
-        end
-
-        -- Turtles als Array sammeln
-        local turtlesSorted = {}
-        for _, t in pairs(masterConfig.turtles) do
-            table.insert(turtlesSorted, t)
-        end
-
-        -- Sortieren nach Zahl im Namen
-        table.sort(turtlesSorted, function(a, b)
-            return turtleNumber(a.turtleName) < turtleNumber(b.turtleName)
-        end)
-
-        -- Monitor aktualisieren
-        mon.clear()
-        local row = 1
-        
-        -- Zeige Queue-Status und Reserved Names
-        if assignmentLock or #assignmentQueue > 0 or next(reservedNames) ~= nil then
-            mon.setCursorPos(1, row)
-            mon.setTextColour(colors.yellow)
-            
-            local reservedCount = 0
-            for _ in pairs(reservedNames) do reservedCount = reservedCount + 1 end
-            
-            mon.write("LOCK: " .. (assignmentLock and "ACTIVE" or "FREE") .. 
-                     " | Queue: " .. #assignmentQueue .. 
-                     " | Reserved: " .. reservedCount)
-            mon.setTextColour(colors.white)
-            row = row + 1
-        end
-        
-        for _, t in ipairs(turtlesSorted) do
-            if row > h then
-                break
-            end
-
-            mon.setCursorPos(1, row)
-
-            mon.setTextColour(t.status == "offline" and colors.red or colors.white)
-
-            local name = monitor.padLeft(t.turtleName, 4)
-            local x = monitor.padRight(t.coordinates and t.coordinates.x or "?", 4)
-            local y = monitor.padRight(t.coordinates and t.coordinates.y or "?", 4)
-            local z = monitor.padRight(t.coordinates and t.coordinates.z or "?", 4)
-            local dirStr = monitor.padLeft(directionToString(t.direction), 6)
-            local fuel = monitor.padRight(t.fuelLevel or "?", 5)
-            local status = monitor.padLeft(t.status or "?", 12)
-            local chunk = monitor.padRight(t.chunkNumber or "?", 3)
-
-            mon.write(name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. " Dir:" .. dirStr .. " Fuel:" .. fuel ..
-                          " Chunk:" .. chunk .. " Status:" .. status)
-
-            row = row + 1
+function MessageHandler.handleNewConnection(id, message, now)
+    log:logDebug("Master", "Received newConnection from ID " .. id)
+    
+    if State.assignmentLock then
+        log:logDebug("Master", "Assignment locked - queuing connection")
+        table.insert(State.assignmentQueue, {
+            id = id,
+            message = message,
+            now = now
+        })
+    else
+        if message.reconnect and message.turtleName then
+            ConnectionHandler.handleReconnection(id, message, now)
+        else
+            ConnectionHandler.handleNewConnection(id, message, now)
         end
     end
 end
 
-local function sendDebugLoop()
+function MessageHandler.handleUpdate(message, now)
+    local tName = message.turtleName
+    
+    if not masterConfig.turtles[tName] then
+        -- Unknown turtle - treat as reconnection
+        log:logDebug("Master", "Unknown turtle " .. tName .. " - treating as reconnection")
+        message.reconnect = true
+        
+        if State.assignmentLock then
+            table.insert(State.assignmentQueue, {
+                id = nil,
+                message = message,
+                now = now
+            })
+        else
+            ConnectionHandler.handleReconnection(nil, message, now)
+        end
+        return
+    end
+    
+    -- Update known turtle
+    masterConfig.turtles[tName].coordinates = {
+        x = message.coordinates.x,
+        y = message.coordinates.y,
+        z = message.coordinates.z
+    }
+    masterConfig.turtles[tName].direction = message.direction
+    masterConfig.turtles[tName].fuelLevel = message.fuelLevel
+    masterConfig.turtles[tName].status = message.status
+    masterConfig.turtles[tName].lastUpdate = now
+    
+    -- Update chunk number if changed
+    if message.chunkNumber and masterConfig.turtles[tName].chunkNumber ~= message.chunkNumber then
+        masterConfig.turtles[tName].chunkNumber = message.chunkNumber
+    end
+    
+    -- Update chunk last update time
+    local chunkNum = masterConfig.turtles[tName].chunkNumber
+    if chunkNum and masterConfig.chunks[chunkNum] then
+        masterConfig.chunks[chunkNum].chunkLastUpdate = now
+    end
+    
+    masterConfig:save(CONFIG_FILE)
+end
+
+function MessageHandler.handleLayerUpdate(message, now)
+    local tName = message.turtleName
+    local height = message.height
+    local chunkNum = message.chunkNumber
+    
+    if masterConfig.turtles[tName] and masterConfig.chunks[chunkNum] then
+        masterConfig.chunks[chunkNum].currentChunkDepth = height
+        masterConfig.chunks[chunkNum].chunkLastUpdate = now
+        
+        log:logDebug("Master", "Updated chunk " .. chunkNum .. " depth to " .. height)
+        masterConfig:save(CONFIG_FILE)
+    else
+        log:logDebug("Master", "Received updateLayer from unknown turtle/chunk: " .. tName)
+    end
+end
+
+-- ============================================================================
+-- TIMEOUT MANAGEMENT
+-- ============================================================================
+
+local TimeoutManager = {}
+
+function TimeoutManager.checkChunks(now)
+    if now - State.chunkLastCheck < masterConfig.chunkTimeout then
+        return
+    end
+    
+    State.chunkLastCheck = now
+    
+    for _, chunk in ipairs(masterConfig.chunks) do
+        if chunk.chunkLastUpdate and chunk.chunkLastUpdate > 0 then
+            if (now - chunk.chunkLastUpdate) > masterConfig.chunkTimeout then
+                log:logDebug("Master", "Chunk " .. chunk.chunkNumber .. " timed out")
+                
+                -- Set turtle offline
+                if chunk.workedByTurtleName and masterConfig.turtles[chunk.workedByTurtleName] then
+                    masterConfig.turtles[chunk.workedByTurtleName].status = "offline"
+                end
+                
+                chunk.workedByTurtleName = nil
+                chunk.chunkLastUpdate = 0
+                masterConfig:save(CONFIG_FILE)
+            end
+        end
+    end
+end
+
+function TimeoutManager.checkTurtles(now)
+    if now - State.turtleLastCheck < masterConfig.turtleTimeout then
+        return
+    end
+    
+    State.turtleLastCheck = now
+    
+    for name, turtle in pairs(masterConfig.turtles) do
+        local last = turtle.lastUpdate or 0
+        if now - last > masterConfig.turtleTimeout then
+            masterConfig.turtles[name].status = "offline"
+        end
+    end
+    
+    masterConfig:save(CONFIG_FILE)
+end
+
+-- ============================================================================
+-- MONITOR DISPLAY
+-- ============================================================================
+
+local MonitorDisplay = {}
+
+function MonitorDisplay.showLockStatus()
+    if not State.mon then return 1 end
+    
+    if State.assignmentLock or #State.assignmentQueue > 0 or NameManager.getReservedCount() > 0 then
+        State.mon.setCursorPos(1, 1)
+        State.mon.setTextColour(colors.yellow)
+        
+        local lockText = "LOCK: " .. (State.assignmentLock and "ACTIVE" or "FREE")
+        local queueText = " | Queue: " .. #State.assignmentQueue
+        local reservedText = " | Reserved: " .. NameManager.getReservedCount()
+        
+        State.mon.write(lockText .. queueText .. reservedText)
+        State.mon.setTextColour(colors.white)
+        return 2
+    end
+    
+    return 1
+end
+
+function MonitorDisplay.showTurtle(turtle, row)
+    if not State.mon or row > State.monitorHeight then
+        return false
+    end
+    
+    State.mon.setCursorPos(1, row)
+    State.mon.setTextColour(turtle.status == "offline" and colors.red or colors.white)
+    
+    local name = monitor.padLeft(turtle.turtleName, 4)
+    local x = monitor.padRight(turtle.coordinates and turtle.coordinates.x or "?", 4)
+    local y = monitor.padRight(turtle.coordinates and turtle.coordinates.y or "?", 4)
+    local z = monitor.padRight(turtle.coordinates and turtle.coordinates.z or "?", 4)
+    local dirStr = monitor.padLeft(Utils.directionToString(turtle.direction), 6)
+    local fuel = monitor.padRight(turtle.fuelLevel or "?", 5)
+    local status = monitor.padLeft(turtle.status or "?", 12)
+    local chunk = monitor.padRight(turtle.chunkNumber or "?", 3)
+    
+    State.mon.write(name .. " X:" .. x .. " Z:" .. z .. " Y:" .. y .. 
+                   " Dir:" .. dirStr .. " Fuel:" .. fuel ..
+                   " Chunk:" .. chunk .. " Status:" .. status)
+    
+    return true
+end
+
+function MonitorDisplay.update()
+    if not State.mon then return end
+    
+    State.mon.clear()
+    
+    local row = MonitorDisplay.showLockStatus()
+    
+    local sortedTurtles = Utils.sortTurtlesByNumber(masterConfig.turtles)
+    
+    for _, turtle in ipairs(sortedTurtles) do
+        if not MonitorDisplay.showTurtle(turtle, row) then
+            break
+        end
+        row = row + 1
+    end
+end
+
+-- ============================================================================
+-- MAIN LOOPS
+-- ============================================================================
+
+local function mainLoop()
+    while true do
+        local now = os.epoch("utc")
+        
+        -- Check for timeouts
+        TimeoutManager.checkChunks(now)
+        TimeoutManager.checkTurtles(now)
+        
+        -- Receive messages
+        local id, msg = rednet.receive("MT", 0.1)
+        if msg and id ~= State.computerId then
+            local success, message = pcall(textutils.unserialize, msg)
+            
+            if success then
+                if message.type == "releaseChunk" then
+                    MessageHandler.handleChunkRelease(message, now)
+                    
+                elseif message.type == "newConnection" then
+                    MessageHandler.handleNewConnection(id, message, now)
+                    
+                elseif message.type == "update" and message.turtleName then
+                    MessageHandler.handleUpdate(message, now)
+                    
+                elseif message.type == "updateLayer" and message.turtleName then
+                    MessageHandler.handleLayerUpdate(message, now)
+                end
+            else
+                log:logDebug("Master", "Failed to deserialize message from ID " .. id)
+            end
+        end
+        
+        -- Process queued connections
+        ConnectionHandler.processQueue()
+        
+        -- Update monitor display
+        MonitorDisplay.update()
+    end
+end
+
+local function debugLoop()
     while true do
         sleep(100)
     end
 end
 
-parallel.waitForAll(sendMessageToMonitor, sendDebugLoop)
+-- ============================================================================
+-- MAIN PROGRAM
+-- ============================================================================
+
+initializeConfig()
+initializeMonitor()
+
+log:logDebug("Master", "Master started, ID: " .. State.computerId)
+
+parallel.waitForAll(mainLoop, debugLoop)
