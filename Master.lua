@@ -19,9 +19,10 @@ finder:openModem()
 
 local computerId = os.getComputerID()
 
--- LOCK-MECHANISMUS für Chunk-Zuweisung
+-- FIX: Enhanced lock mechanism with name reservation
 local assignmentLock = false
 local assignmentQueue = {}
+local reservedNames = {} -- FIX: Track names being assigned
 
 local function getNumber(prompt)
     write(prompt)
@@ -52,16 +53,34 @@ local function directionToString(dir)
     end
 end
 
+-- FIX: Improved name generation with immediate reservation
 local function getNewTurtleName()
     local maxNumber = 0
+    
+    -- Check both existing turtles AND reserved names
     for name, _ in pairs(masterConfig.turtles) do
         local number = tonumber(name:match("%d+")) or 0
         if number > maxNumber then
             maxNumber = number
         end
     end
-    print("Assigning new turtle name MT" .. (maxNumber + 1))
-    return "MT" .. (maxNumber + 1)
+    
+    for name, _ in pairs(reservedNames) do
+        local number = tonumber(name:match("%d+")) or 0
+        if number > maxNumber then
+            maxNumber = number
+        end
+    end
+    
+    local newName = "MT" .. (maxNumber + 1)
+    
+    -- FIX: Immediately reserve this name
+    reservedNames[newName] = true
+    
+    log:logDebug("Master", "Assigned new turtle name: " .. newName .. " (reserved)")
+    print("Assigning new turtle name " .. newName)
+    
+    return newName
 end
 
 local function sendConfigToTurtle(id, turtleName, chunkNumber)
@@ -70,9 +89,49 @@ local function sendConfigToTurtle(id, turtleName, chunkNumber)
     log:logDebug("Master", "Sent config to " .. turtleName .. " for chunk " .. chunkNumber)
 end
 
--- Verarbeitet eine neue Turtle-Verbindung mit Lock
+-- FIX: Enhanced connection processing with name reservation cleanup
 local function processNewConnection(id, message, now)
-    local turtleName = message.turtleName or getNewTurtleName()
+    local isReconnect = message.reconnect or false
+    local turtleName = message.turtleName
+    
+    -- FIX: Handle reconnect vs new connection differently
+    if isReconnect and turtleName and masterConfig.turtles[turtleName] then
+        log:logDebug("Master", "Processing reconnection for existing turtle: " .. turtleName)
+        
+        -- This is a known turtle reconnecting - send config immediately
+        local turtle = masterConfig.turtles[turtleName]
+        
+        -- Update position
+        turtle.coordinates = {
+            x = message.coordinates.x,
+            y = message.coordinates.y,
+            z = message.coordinates.z
+        }
+        turtle.direction = message.direction
+        turtle.lastUpdate = now
+        turtle.status = "reconnecting"
+        
+        -- If turtle lost its chunk, find a new one
+        if not turtle.chunkNumber or turtle.chunkNumber == 0 then
+            log:logDebug("Master", "Reconnecting turtle " .. turtleName .. " needs new chunk")
+            local chunk = masterConfig:findChunk(turtleName)
+            turtle.chunkNumber = chunk.chunkNumber
+        end
+        
+        -- Send config
+        sendConfigToTurtle(id, turtleName, turtle.chunkNumber)
+        masterConfig:save(configName)
+        
+        return
+    end
+    
+    -- New connection or unnamed turtle
+    if not turtleName or turtleName == "" then
+        turtleName = getNewTurtleName()
+    else
+        -- FIX: Reserve the provided name to prevent duplicates
+        reservedNames[turtleName] = true
+    end
     
     log:logDebug("Master", "Processing new connection for " .. turtleName)
     
@@ -113,6 +172,9 @@ local function processNewConnection(id, message, now)
 
     -- Konfiguration senden
     sendConfigToTurtle(id, turtleName, chunk.chunkNumber)
+    
+    -- FIX: Move name from reserved to confirmed
+    reservedNames[turtleName] = nil
 
     -- LOCK FREIGEBEN
     assignmentLock = false
@@ -130,6 +192,39 @@ local function processAssignmentQueue()
         log:logDebug("Master", "Processing queued connection for " .. (next.message.turtleName or "unknown"))
         processNewConnection(next.id, next.message, next.now)
     end
+end
+
+-- FIX: New handler for chunk release messages
+local function handleChunkRelease(message, now)
+    local turtleName = message.turtleName
+    local chunkNumber = message.chunkNumber
+    
+    if not turtleName or not chunkNumber then
+        log:logDebug("Master", "Invalid chunk release message")
+        return
+    end
+    
+    log:logDebug("Master", "Turtle " .. turtleName .. " releasing chunk " .. chunkNumber)
+    
+    -- Release the chunk
+    if masterConfig.chunks[chunkNumber] then
+        if masterConfig.chunks[chunkNumber].workedByTurtleName == turtleName then
+            masterConfig.chunks[chunkNumber].workedByTurtleName = nil
+            masterConfig.chunks[chunkNumber].chunkLastUpdate = 0
+            log:logDebug("Master", "Chunk " .. chunkNumber .. " released successfully")
+        else
+            log:logDebug("Master", "WARNING: Chunk " .. chunkNumber .. " was not owned by " .. turtleName)
+        end
+    end
+    
+    -- Update turtle state
+    if masterConfig.turtles[turtleName] then
+        masterConfig.turtles[turtleName].chunkNumber = 0
+        masterConfig.turtles[turtleName].status = "released_chunk"
+        masterConfig.turtles[turtleName].lastUpdate = now
+    end
+    
+    masterConfig:save(configName)
 end
 
 local function sendMessageToMonitor()
@@ -177,7 +272,11 @@ local function sendMessageToMonitor()
             if not success then
                 log:logDebug("Master", "Failed to deserialize message from ID " .. id)
             else
-                if message.type == "newConnection" then
+                -- FIX: Handle chunk release messages
+                if message.type == "releaseChunk" then
+                    handleChunkRelease(message, now)
+                    
+                elseif message.type == "newConnection" then
                     -- Prüfe ob Lock aktiv ist
                     if assignmentLock then
                         log:logDebug("Master", "Assignment locked - queuing connection request")
@@ -198,25 +297,18 @@ local function sendMessageToMonitor()
                         -- Unbekannte Turtle - als neue Connection behandeln
                         log:logDebug("Master", "Unknown turtle " .. tName .. " - treating as new connection")
                         
-                        masterConfig.turtles[tName] = {
-                            turtleName = tName,
-                            coordinates = {
-                                x = message.coordinates.x,
-                                y = message.coordinates.y,
-                                z = message.coordinates.z
-                            },
-                            direction = message.direction,
-                            fuelLevel = message.fuelLevel,
-                            status = "reconnecting",
-                            chunkNumber = message.chunkNumber,
-                            lastUpdate = now
-                        }
+                        -- FIX: Treat as reconnection
+                        message.reconnect = true
                         
-                        -- Chunk prüfen und ggf. neu zuweisen
-                        local chunk = masterConfig:findChunk(tName)
-                        masterConfig.turtles[tName].chunkNumber = chunk.chunkNumber
-                        
-                        sendConfigToTurtle(id, tName, chunk.chunkNumber)
+                        if assignmentLock then
+                            table.insert(assignmentQueue, {
+                                id = id,
+                                message = message,
+                                now = now
+                            })
+                        else
+                            processNewConnection(id, message, now)
+                        end
                     else
                         -- Bekannte Turtle - Update verarbeiten
                         masterConfig.turtles[tName].coordinates = {
@@ -244,7 +336,7 @@ local function sendMessageToMonitor()
                     masterConfig:save(configName)
 
                 elseif message.type == "updateLayer" and message.turtleName ~= nil then
-                    -- NEUER HANDLER für Layer-Updates
+                    -- Handler für Layer-Updates
                     local tName = message.turtleName
                     local height = message.height
                     local chunkNum = message.chunkNumber
@@ -285,11 +377,17 @@ local function sendMessageToMonitor()
         mon.clear()
         local row = 1
         
-        -- Zeige Queue-Status und Counter in erster Zeile
-        if assignmentLock or #assignmentQueue > 0 then
+        -- Zeige Queue-Status und Reserved Names
+        if assignmentLock or #assignmentQueue > 0 or next(reservedNames) ~= nil then
             mon.setCursorPos(1, row)
             mon.setTextColour(colors.yellow)
-            mon.write("LOCK: " .. (assignmentLock and "ACTIVE" or "FREE") .. " | Queue: " .. #assignmentQueue .. " | Next: MT" .. masterConfig.nextTurtleNumber)
+            
+            local reservedCount = 0
+            for _ in pairs(reservedNames) do reservedCount = reservedCount + 1 end
+            
+            mon.write("LOCK: " .. (assignmentLock and "ACTIVE" or "FREE") .. 
+                     " | Queue: " .. #assignmentQueue .. 
+                     " | Reserved: " .. reservedCount)
             mon.setTextColour(colors.white)
             row = row + 1
         end

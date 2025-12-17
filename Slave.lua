@@ -1,5 +1,5 @@
 -- ============================================================================
--- SLAVE.LUA - Mining Turtle Controller
+-- SLAVE.LUA - Mining Turtle Controller (FIXED VERSION)
 -- ============================================================================
 
 local DeviceFinder = require("helper.getDevices")
@@ -97,6 +97,12 @@ function Utils.stableGPS()
     end
 end
 
+-- FIX: Random delay helper
+function Utils.randomDelay(minSeconds, maxSeconds)
+    local delay = minSeconds + math.random() * (maxSeconds - minSeconds)
+    os.sleep(delay)
+end
+
 -- ============================================================================
 -- COMMUNICATION
 -- ============================================================================
@@ -126,6 +132,19 @@ function Communication.sendLayerUpdate(height)
     rednet.broadcast(textutils.serialize(data), "MT")
 end
 
+-- FIX: Release chunk before reconnecting
+function Communication.releaseChunk()
+    if State.chunkNumber and State.chunkNumber > 0 then
+        local data = {
+            type = "releaseChunk",
+            turtleName = State.turtleName,
+            chunkNumber = State.chunkNumber
+        }
+        rednet.broadcast(textutils.serialize(data), "MT")
+        log:logDebug(State.turtleName, "Released chunk " .. State.chunkNumber)
+    end
+end
+
 function Communication.connectToMaster()
     print("Connecting to Master...")
     
@@ -133,16 +152,21 @@ function Communication.connectToMaster()
         type = "newConnection",
         turtleName = State.turtleName,
         coordinates = {x = State.x, y = State.y, z = State.z},
-        direction = State.direction
+        direction = State.direction,
+        reconnect = (State.chunkNumber and State.chunkNumber > 0) -- FIX: Signal reconnection
     }
     
     log:logDebug(State.turtleName, string.format(
-        "Connecting from X:%d Y:%d Z:%d", State.x, State.y, State.z
+        "Connecting from X:%d Y:%d Z:%d (reconnect: %s)", 
+        State.x, State.y, State.z, tostring(data.reconnect)
     ))
     
     rednet.broadcast(textutils.serialize(data), "MT")
     
-    while true do
+    local maxRetries = 10
+    local retryCount = 0
+    
+    while retryCount < maxRetries do
         local id, msg = rednet.receive("C", 5)
         if msg then
             local config = textutils.unserialize(msg)
@@ -176,10 +200,15 @@ function Communication.connectToMaster()
             return
         end
         
-        log:logDebug(State.turtleName, "No response, retrying...")
+        retryCount = retryCount + 1
+        log:logDebug(State.turtleName, "No response, retry " .. retryCount .. "/" .. maxRetries)
+        
+        -- FIX: Add random delay to prevent all turtles retrying simultaneously
+        Utils.randomDelay(2, 4)
         rednet.broadcast(textutils.serialize(data), "MT")
-        sleep(3)
     end
+    
+    error("Failed to connect to Master after " .. maxRetries .. " attempts")
 end
 
 -- ============================================================================
@@ -203,6 +232,7 @@ function TurtleDetection.isBelow()
     return success and data and data.name == TURTLE_BLOCK_NAME
 end
 
+-- FIX: Add random delays to prevent synchronized waiting
 function TurtleDetection.waitForClearAhead(maxWait)
     maxWait = maxWait or WAIT_FOR_TURTLE_TIMEOUT
     local waited = 0
@@ -211,8 +241,11 @@ function TurtleDetection.waitForClearAhead(maxWait)
         State.status = "Waiting for Turtle"
         Communication.sendUpdate()
         print("Turtle ahead, waiting...")
-        os.sleep(1)
-        waited = waited + 1
+        
+        -- FIX: Random delay between 0.5 and 2 seconds
+        local delay = 0.5 + math.random() * 1.5
+        os.sleep(delay)
+        waited = waited + delay
     end
     
     return not TurtleDetection.isAhead()
@@ -226,8 +259,11 @@ function TurtleDetection.waitForClearAbove(maxWait)
         State.status = "Waiting for Turtle"
         Communication.sendUpdate()
         print("Turtle above, waiting...")
-        os.sleep(1)
-        waited = waited + 1
+        
+        -- FIX: Random delay
+        local delay = 0.5 + math.random() * 1.5
+        os.sleep(delay)
+        waited = waited + delay
     end
     
     return not TurtleDetection.isAbove()
@@ -241,8 +277,11 @@ function TurtleDetection.waitForClearBelow(maxWait)
         State.status = "Waiting for Turtle"
         Communication.sendUpdate()
         print("Turtle below, waiting...")
-        os.sleep(1)
-        waited = waited + 1
+        
+        -- FIX: Random delay
+        local delay = 0.5 + math.random() * 1.5
+        os.sleep(delay)
+        waited = waited + delay
     end
     
     return not TurtleDetection.isBelow()
@@ -301,43 +340,182 @@ function Movement.turnTo(targetDir)
     Communication.sendUpdate()
 end
 
+function Movement.updatePositionForward()
+    if State.direction == DIRECTION.NORTH then
+        State.z = State.z - 1
+    elseif State.direction == DIRECTION.EAST then
+        State.x = State.x + 1
+    elseif State.direction == DIRECTION.SOUTH then
+        State.z = State.z + 1
+    elseif State.direction == DIRECTION.WEST then
+        State.x = State.x - 1
+    end
+    Communication.sendUpdate()
+end
+
 -- ============================================================================
 -- MOVEMENT - Avoidance Strategies
 -- ============================================================================
 
+-- FIX: Completely rewritten sideways avoidance with proper coordinate tracking
 function Movement.tryAvoidSideways()
     print("Attempting sideways avoidance...")
     
-    -- Try right
+    -- Save original position and direction
+    local origDir = State.direction
+    
+    -- Try right maneuver: Right -> Forward -> Left -> Forward -> Left -> Forward -> Right
     Movement.turnRight()
     if not TurtleDetection.isAhead() and turtle.forward() then
-        os.sleep(2)
+        Movement.updatePositionForward()
+        
+        Utils.randomDelay(1, 3) -- Random delay
+        
         Movement.turnLeft()
         if not TurtleDetection.isAhead() and turtle.forward() then
+            Movement.updatePositionForward()
+            
             Movement.turnLeft()
             if not TurtleDetection.isAhead() and turtle.forward() then
+                Movement.updatePositionForward()
+                
                 Movement.turnRight()
+                print("Successfully avoided via right")
                 return true
+            else
+                -- Failed at third step - go back
+                Movement.turnRight()
+                turtle.forward()
+                Movement.updatePositionForward()
+                Movement.turnRight()
+                turtle.forward()
+                Movement.updatePositionForward()
+                Movement.turnLeft()
             end
+        else
+            -- Failed at second step - go back
+            Movement.turnRight()
+            turtle.forward()
+            Movement.updatePositionForward()
+            Movement.turnLeft()
         end
+    else
+        -- Failed at first step
+        Movement.turnLeft()
     end
-    Movement.turnLeft()
     
-    -- Try left
+    -- Try left maneuver: Left -> Forward -> Right -> Forward -> Right -> Forward -> Left
     Movement.turnLeft()
     if not TurtleDetection.isAhead() and turtle.forward() then
-        os.sleep(2)
+        Movement.updatePositionForward()
+        
+        Utils.randomDelay(1, 3) -- Random delay
+        
         Movement.turnRight()
         if not TurtleDetection.isAhead() and turtle.forward() then
+            Movement.updatePositionForward()
+            
             Movement.turnRight()
             if not TurtleDetection.isAhead() and turtle.forward() then
+                Movement.updatePositionForward()
+                
                 Movement.turnLeft()
+                print("Successfully avoided via left")
                 return true
+            else
+                -- Failed at third step - go back
+                Movement.turnLeft()
+                turtle.forward()
+                Movement.updatePositionForward()
+                Movement.turnLeft()
+                turtle.forward()
+                Movement.updatePositionForward()
+                Movement.turnRight()
+            end
+        else
+            -- Failed at second step - go back
+            Movement.turnLeft()
+            turtle.forward()
+            Movement.updatePositionForward()
+            Movement.turnRight()
+        end
+    else
+        -- Failed at first step
+        Movement.turnRight()
+    end
+    
+    print("Sideways avoidance failed")
+    return false
+end
+
+-- FIX: New vertical avoidance with random delays
+function Movement.tryAvoidVertical()
+    print("Attempting vertical avoidance...")
+    
+    -- Random delay before attempting
+    Utils.randomDelay(0.5, 2)
+    
+    -- Try going up and around
+    if not TurtleDetection.isAbove() and turtle.up() then
+        State.y = State.y + 1
+        Communication.sendUpdate()
+        
+        Utils.randomDelay(1, 3)
+        
+        if not TurtleDetection.isAhead() and turtle.forward() then
+            Movement.updatePositionForward()
+            
+            if not TurtleDetection.isBelow() and turtle.down() then
+                State.y = State.y - 1
+                Communication.sendUpdate()
+                print("Successfully avoided via up")
+                return true
+            else
+                -- Can't go down, stay up and move forward was successful
+                print("Avoided up, staying elevated")
+                return true
+            end
+        else
+            -- Can't move forward, go back down
+            if not TurtleDetection.isBelow() then
+                turtle.down()
+                State.y = State.y - 1
+                Communication.sendUpdate()
             end
         end
     end
-    Movement.turnRight()
     
+    -- Try going down and around
+    if not TurtleDetection.isBelow() and turtle.down() then
+        State.y = State.y - 1
+        Communication.sendUpdate()
+        
+        Utils.randomDelay(1, 3)
+        
+        if not TurtleDetection.isAhead() and turtle.forward() then
+            Movement.updatePositionForward()
+            
+            if not TurtleDetection.isAbove() and turtle.up() then
+                State.y = State.y + 1
+                Communication.sendUpdate()
+                print("Successfully avoided via down")
+                return true
+            else
+                -- Can't go up, stay down and move forward was successful
+                print("Avoided down, staying lower")
+                return true
+            end
+        else
+            -- Can't move forward, go back up
+            if not TurtleDetection.isAbove() then
+                turtle.up()
+                State.y = State.y + 1
+                Communication.sendUpdate()
+            end
+        end
+    end
+    
+    print("Vertical avoidance failed")
     return false
 end
 
@@ -372,7 +550,7 @@ function Movement.up()
         end
         
         attempts = attempts + 1
-        os.sleep(0.5)
+        Utils.randomDelay(0.3, 0.7)
     end
     
     error("Could not move up after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
@@ -405,7 +583,7 @@ function Movement.down()
         end
         
         attempts = attempts + 1
-        os.sleep(0.5)
+        Utils.randomDelay(0.3, 0.7)
     end
     
     error("Could not move down after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
@@ -415,7 +593,7 @@ function Movement.forward()
     local attempts = 0
     
     while attempts < MAX_MOVEMENT_ATTEMPTS do
-        -- CHECK: Wenn resumeMining kommt während returnToBase läuft, abbrechen!
+        -- CHECK: Command override
         if State.currentCommand == "resumeMining" and State.status:find("Returning") then
             print("Movement interrupted by resumeMining!")
             error("COMMAND_OVERRIDE")
@@ -423,29 +601,12 @@ function Movement.forward()
         
         if TurtleDetection.isAhead() then
             if not TurtleDetection.waitForClearAhead(10) then
-                -- Try vertical avoidance
-                if not TurtleDetection.isAbove() and turtle.up() then
-                    State.y = State.y + 1
-                    Communication.sendUpdate()
-                    os.sleep(2)
-                    
-                    if not TurtleDetection.isAhead() and turtle.forward() then
-                        Movement.updatePositionForward()
-                        
-                        if not TurtleDetection.isBelow() and turtle.down() then
-                            State.y = State.y - 1
-                            Communication.sendUpdate()
-                            return true
-                        end
-                    else
-                        if not TurtleDetection.isBelow() then
-                            turtle.down()
-                            State.y = State.y - 1
-                            Communication.sendUpdate()
-                        end
-                    end
+                -- FIX: Try vertical avoidance first, then sideways
+                if not Movement.tryAvoidVertical() and not Movement.tryAvoidSideways() then
+                    attempts = attempts + 1
+                else
+                    attempts = 0
                 end
-                attempts = 0
             end
         elseif turtle.detect() then
             Movement.safeDig()
@@ -457,23 +618,10 @@ function Movement.forward()
         end
         
         attempts = attempts + 1
-        os.sleep(0.5)
+        Utils.randomDelay(0.3, 0.7)
     end
     
     error("Could not move forward after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
-end
-
-function Movement.updatePositionForward()
-    if State.direction == DIRECTION.NORTH then
-        State.z = State.z - 1
-    elseif State.direction == DIRECTION.EAST then
-        State.x = State.x + 1
-    elseif State.direction == DIRECTION.SOUTH then
-        State.z = State.z + 1
-    elseif State.direction == DIRECTION.WEST then
-        State.x = State.x - 1
-    end
-    Communication.sendUpdate()
 end
 
 -- ============================================================================
@@ -583,6 +731,33 @@ function Navigation.detectDirection()
     
     print("Warning: Could not detect direction, using current")
     return State.direction
+end
+
+-- FIX: New parking logic for returnToBase
+function Navigation.parkAtBase()
+    -- Calculate parking position in a grid pattern
+    -- Extract turtle number from name (e.g., "MT5" -> 5)
+    local turtleNum = tonumber(State.turtleName:match("%d+")) or 1
+    
+    -- Grid layout: 4x4 grid, 1 block spacing
+    local gridSize = 4
+    local spacing = 1
+    
+    local row = math.floor((turtleNum - 1) / gridSize)
+    local col = (turtleNum - 1) % gridSize
+    
+    -- Calculate offset from chest position
+    local offsetX = col * spacing
+    local offsetZ = row * spacing
+    
+    -- Park next to chest with calculated offsets
+    local parkX = State.chestCoords.x + offsetX
+    local parkZ = State.chestCoords.z + offsetZ
+    local parkY = State.chestCoords.y - 1 -- One below chest
+    
+    print(string.format("Parking at grid position [%d,%d]: X:%d Z:%d", row, col, parkX, parkZ))
+    
+    Navigation.goToPosition(parkX, parkY, parkZ, State.chestCoords.direction)
 end
 
 -- ============================================================================
@@ -737,24 +912,20 @@ function Commands.execute()
     if cmd == "returnToBase" then
         success, err = pcall(Commands.returnToBase)
         
-        -- Wenn durch neuen Befehl unterbrochen
         if not success then
             local errStr = tostring(err)
             if errStr:find("COMMAND_OVERRIDE") or errStr:find("RESTART_MINING") then
                 print("returnToBase was interrupted!")
-                -- Prüfe ob ein neuer Befehl da ist
                 if State.currentCommand ~= cmd then
                     print("New command detected: " .. State.currentCommand)
                     State.commandHandled = false
-                    return Commands.execute() -- Führe neuen Befehl aus
+                    return Commands.execute()
                 end
             else
-                -- Echter Fehler
                 error(err)
             end
         end
         
-        -- Nach erfolgreichem returnToBase - prüfe auf neuen Befehl
         if State.currentCommand ~= cmd then
             print("New command detected after returnToBase: " .. State.currentCommand)
             State.commandHandled = false
@@ -762,7 +933,7 @@ function Commands.execute()
         end
         
     elseif cmd == "resumeMining" then
-        Commands.resumeMining() -- Wirft immer RESTART_MINING error
+        Commands.resumeMining()
     end
     
     State.commandHandled = true
@@ -775,24 +946,17 @@ function Commands.returnToBase()
     Communication.sendUpdate()
     print("Going to base...")
     
-    -- Wrapper für Navigation mit Command-Check
     local success, err = pcall(function()
-        Navigation.goToPosition(
-            State.chestCoords.x,
-            State.chestCoords.y - 1,
-            State.chestCoords.z,
-            State.chestCoords.direction
-        )
+        -- FIX: Use new parking logic
+        Navigation.parkAtBase()
     end)
     
-    -- Wenn Error durch neuen Befehl, propagiere ihn
     if not success then
         local errStr = tostring(err)
         if errStr:find("COMMAND_OVERRIDE") or errStr:find("RESTART_MINING") then
             print("returnToBase interrupted by new command!")
             error(err)
         else
-            -- Anderer Fehler
             error(err)
         end
     end
@@ -813,18 +977,24 @@ function Commands.returnToBase()
     print("Wait ended. Current command: " .. tostring(State.currentCommand))
 end
 
+-- FIX: Improved resumeMining - properly releases chunk before reconnecting
 function Commands.resumeMining()
     State.status = "Resuming Mining"
     Communication.sendUpdate()
-
-    -- Reset state only
+    
+    print("Releasing current chunk before resuming...")
+    
+    -- FIX: Release chunk to Master BEFORE resetting
+    Communication.releaseChunk()
+    os.sleep(1) -- Give Master time to process
+    
+    -- Reset state
     State.chunkNumber = 0
     State.restartMining = true
 
     -- Force controlled restart
     error("RESTART_MINING")
 end
-
 
 function Commands.check()
     if State.currentCommand and not State.commandHandled then
@@ -965,7 +1135,6 @@ local function main()
             while true do
                 State.restartMining = false
                 
-                -- Protect mining loop with pcall to catch restart signals
                 local success, err = pcall(function()
                     Communication.connectToMaster()
                     Utils.sleep(3)
@@ -983,14 +1152,12 @@ local function main()
                                   State.currentCommand == "returnToBase" do
                                 os.sleep(1)
                                 
-                                -- DEBUG: Zeige alle 10 Sekunden Status
                                 if (os.epoch("utc") % 10000) < 1000 then
                                     print("Waiting... Current command: " .. tostring(State.currentCommand))
                                 end
                             end
                             print("Wait loop ended. Checking for resumeMining...")
                             
-                            -- Wenn resumeMining gekommen ist, führe es aus
                             if State.currentCommand == "resumeMining" then
                                 print("Executing resumeMining from wait loop...")
                                 Commands.execute()
@@ -1002,15 +1169,11 @@ local function main()
                     end
                 end)
                 
-                -- Check if restart was requested via error
                 if not success then
-                    -- Error enthält Stack-Trace, deshalb string.find() verwenden
                     local errStr = tostring(err)
                     if errStr:find("RESTART_MINING") or errStr:find("COMMAND_OVERRIDE") then
                         print("Restarting mining loop with new chunk...")
-                        -- Loop continues from top
                     else
-                        -- Real error - propagate it
                         print("Real error occurred: " .. errStr)
                         error(err)
                     end

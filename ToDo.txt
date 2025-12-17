@@ -1,0 +1,10 @@
+Attempting sideway avoidance macht die koordinanten und damit den chunk kaputt
+ausweich logik nach oben und unten mit random timer
+Doppelte chunk vergabe bei resume Mining
+mehrere Turtles bekamen den gleichen Namen
+Resume Mining mit korrekter chunk vergabe und anfangen von minen
+refactor Master.lua und MasterConfig.lua
+Testen einer Turtle die nachträglich nochmal gesetzt wird, bekommt von Master keine Antwort
+Logik für das zurückgehen zur Base mit Stacking? Oder als Würfel?
+Fortschrittsanzeige für Chunks
+Abgebaute Rohstoffe tracken pro Turtle und insgesamt
