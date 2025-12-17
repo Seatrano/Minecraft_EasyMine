@@ -977,24 +977,23 @@ function Commands.returnToBase()
     print("Wait ended. Current command: " .. tostring(State.currentCommand))
 end
 
--- FIX: Improved resumeMining - properly releases chunk before reconnecting
 function Commands.resumeMining()
     State.status = "Resuming Mining"
     Communication.sendUpdate()
-    
-    print("Releasing current chunk before resuming...")
-    
-    -- FIX: Release chunk to Master BEFORE resetting
+
     Communication.releaseChunk()
-    os.sleep(1) -- Give Master time to process
-    
-    -- Reset state
+    os.sleep(1)
+
     State.chunkNumber = 0
     State.restartMining = true
 
-    -- Force controlled restart
+    -- FIX: clear command state
+    State.currentCommand = nil
+    State.commandHandled = true
+
     error("RESTART_MINING")
 end
+
 
 function Commands.check()
     if State.currentCommand and not State.commandHandled then
