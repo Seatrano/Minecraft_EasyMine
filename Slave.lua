@@ -260,7 +260,6 @@ function TurtleDetection.waitForClearAbove(maxWait)
         Communication.sendUpdate()
         print("Turtle above, waiting...")
         
-        -- FIX: Random delay
         local delay = 0.5 + math.random() * 1.5
         os.sleep(delay)
         waited = waited + delay
@@ -278,7 +277,6 @@ function TurtleDetection.waitForClearBelow(maxWait)
         Communication.sendUpdate()
         print("Turtle below, waiting...")
         
-        -- FIX: Random delay
         local delay = 0.5 + math.random() * 1.5
         os.sleep(delay)
         waited = waited + delay

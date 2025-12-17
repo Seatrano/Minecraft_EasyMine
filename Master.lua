@@ -278,6 +278,7 @@ local function sendMessageToMonitor()
                     
                 elseif message.type == "newConnection" then
                     -- Prüfe ob Lock aktiv ist
+                    log:logDebug("Master", "Received newConnection from ID " .. id)
                     if assignmentLock then
                         log:logDebug("Master", "Assignment locked - queuing connection request")
                         table.insert(assignmentQueue, {
