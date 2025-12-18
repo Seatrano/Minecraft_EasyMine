@@ -18,7 +18,7 @@ MasterConfig.__index = MasterConfig
 
 local DEFAULT_CONFIG = {
     chunkTimeout = 30000,
-    turtleTimeout = 5000,
+    turtleTimeout = 10000,
     firstStartPoint = {x = 448, y = 74, z = 64},
     chestCoordinates = {x = 448, y = 75, z = 64, direction = 1},
     maxDepth = -60,
