@@ -203,8 +203,6 @@ function ConnectionHandler.handleNewConnection(id, message, now)
         return ConnectionHandler.handleReconnection(id, message, now)
     end
 
-    -- ===== KRITISCHE SEKTION BEGINNT HIER =====
-    -- LOCK SOFORT SETZEN, BEVOR Namen generiert wird
     State.assignmentLock = true
 
     -- Name generieren oder verwenden
@@ -246,7 +244,6 @@ function ConnectionHandler.handleNewConnection(id, message, now)
     local chunk = masterConfig:findChunk(turtleName)
     masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
 
-    -- WICHTIG: Speichern VOR dem Unlock!
     masterConfig:save(CONFIG_FILE)
 
     log:logDebug("Master", "Assigned chunk " .. chunk.chunkNumber .. " to " .. turtleName)
@@ -257,7 +254,7 @@ function ConnectionHandler.handleNewConnection(id, message, now)
     -- Confirm name reservation
     NameManager.confirmName(turtleName)
 
-    -- UNLOCK Assignment - ERST JETZT!
+    -- UNLOCK Assignment 
     State.assignmentLock = false
     log:logDebug("Master", "Released assignment lock for " .. turtleName)
 end
