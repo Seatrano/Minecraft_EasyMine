@@ -197,32 +197,32 @@ end
 
 function ConnectionHandler.handleNewConnection(id, message, now)
     local turtleName = message.turtleName
-    
-    -- Check if this is actually a known turtle reconnecting (even if reconnect=false)
+
+    -- Check if this is actually a known turtle reconnecting
     if turtleName and masterConfig.turtles[turtleName] then
         log:logDebug("Master", "Known turtle " .. turtleName .. " connecting (treating as reconnect)")
         return ConnectionHandler.handleReconnection(id, message, now)
     end
-    
+
+    -- LOCK für Name generieren
     if not turtleName or turtleName == "" then
-        while State.nameLock do sleep(0.5) end
-        State.nameLock = true
+        while State.nameLock do sleep(0.05) end  -- warten, falls Lock aktiv
+        State.nameLock = true                   -- Lock setzen
         turtleName = NameManager.generateNewName()
-        State.nameLock = false
+        State.nameLock = false                  -- Lock wieder frei
     else
         NameManager.reserveName(turtleName)
     end
-    
+
     log:logDebug("Master", "Processing new connection for: " .. turtleName)
-    
-    -- LOCK ASSIGNMENT
+
+    -- LOCK ASSIGNMENT für kritische MasterConfig-Updates
     State.assignmentLock = true
-    
+
     -- Initialize or reactivate turtle
     if not masterConfig.turtles[turtleName] then
         masterConfig.turtles[turtleName] = {}
     else
-        -- Release old chunk if exists
         local oldChunkNum = masterConfig.turtles[turtleName].chunkNumber
         if oldChunkNum and masterConfig.chunks[oldChunkNum] then
             log:logDebug("Master", "Releasing old chunk " .. oldChunkNum)
@@ -230,7 +230,7 @@ function ConnectionHandler.handleNewConnection(id, message, now)
             masterConfig.chunks[oldChunkNum].chunkLastUpdate = 0
         end
     end
-    
+
     -- Update turtle data
     masterConfig.turtles[turtleName].turtleName = turtleName
     masterConfig.turtles[turtleName].coordinates = {
@@ -241,26 +241,26 @@ function ConnectionHandler.handleNewConnection(id, message, now)
     masterConfig.turtles[turtleName].direction = message.direction
     masterConfig.turtles[turtleName].lastUpdate = now
     masterConfig.turtles[turtleName].status = "connecting"
-    
-    -- Assign chunk (CRITICAL SECTION)
+
+    -- Assign chunk
     local chunk = masterConfig:findChunk(turtleName)
     masterConfig.turtles[turtleName].chunkNumber = chunk.chunkNumber
-    
-    -- Save immediately to prevent race conditions
+
     masterConfig:save(CONFIG_FILE)
-    
+
     log:logDebug("Master", "Assigned chunk " .. chunk.chunkNumber .. " to " .. turtleName)
-    
+
     -- Send configuration
     Communication.sendConfig(id, turtleName, chunk.chunkNumber)
-    
+
     -- Confirm name reservation
     NameManager.confirmName(turtleName)
-    
-    -- UNLOCK ASSIGNMENT
+
+    -- UNLOCK Assignment
     State.assignmentLock = false
     log:logDebug("Master", "Released assignment lock for " .. turtleName)
 end
+
 
 function ConnectionHandler.processQueue()
     if State.assignmentLock or #State.assignmentQueue == 0 then
