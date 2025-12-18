@@ -349,89 +349,74 @@ end
 -- ============================================================================
 -- MOVEMENT - Avoidance Strategies
 -- ============================================================================
-
 function Movement.tryAvoidSideways()
     print("Attempting sideways avoidance...")
-    
+
     local origDir = State.direction
-    
-    -- Try right maneuver
-    Movement.turnRight()
-    if not TurtleDetection.isAhead() and turtle.forward() then
-        Movement.updatePositionForward()
-        
-        Utils.randomDelay(1, 3)
-        
-        Movement.turnLeft()
-        if not TurtleDetection.isAhead() and turtle.forward() then
-            Movement.updatePositionForward()
-            
-            Movement.turnLeft()
-            if not TurtleDetection.isAhead() and turtle.forward() then
-                Movement.updatePositionForward()
-                
-                Movement.turnRight()
-                print("Successfully avoided via right")
-                return true
-            else
-                Movement.turnRight()
-                turtle.forward()
-                Movement.updatePositionForward()
-                Movement.turnRight()
-                turtle.forward()
-                Movement.updatePositionForward()
-                Movement.turnLeft()
-            end
-        else
-            Movement.turnRight()
-            turtle.forward()
-            Movement.updatePositionForward()
+
+    local function restoreDirection()
+        while State.direction ~= origDir do
             Movement.turnLeft()
         end
-    else
-        Movement.turnLeft()
     end
-    
-    -- Try left maneuver
-    Movement.turnLeft()
-    if not TurtleDetection.isAhead() and turtle.forward() then
+
+    local function moveForwardChecked()
+        if TurtleDetection.isAhead() then return false end
+        if not turtle.forward() then return false end
         Movement.updatePositionForward()
-        
-        Utils.randomDelay(1, 3)
-        
-        Movement.turnRight()
-        if not TurtleDetection.isAhead() and turtle.forward() then
-            Movement.updatePositionForward()
-            
-            Movement.turnRight()
-            if not TurtleDetection.isAhead() and turtle.forward() then
-                Movement.updatePositionForward()
-                
-                Movement.turnLeft()
-                print("Successfully avoided via left")
-                return true
-            else
-                Movement.turnLeft()
-                turtle.forward()
-                Movement.updatePositionForward()
-                Movement.turnLeft()
-                turtle.forward()
-                Movement.updatePositionForward()
-                Movement.turnRight()
-            end
-        else
-            Movement.turnLeft()
-            turtle.forward()
-            Movement.updatePositionForward()
-            Movement.turnRight()
-        end
-    else
-        Movement.turnRight()
+        return true
     end
-    
+
+    local function trySide(turnSide, turnBack)
+        -- Step 1: move sideways
+        turnSide()
+        if not moveForwardChecked() then
+            turnBack()
+            return false
+        end
+
+        -- Step 2: face original direction and move forward
+        turnBack()
+        if not moveForwardChecked() then
+            -- rollback sideways using only forward
+            turnSide(); turnSide()
+            if not moveForwardChecked() then return false end
+            turnBack()
+            restoreDirection()
+            return false
+        end
+
+        -- Step 3: move back to original column
+        turnSide()
+        if not moveForwardChecked() then
+            -- cannot safely restore → abort hard
+            restoreDirection()
+            return false
+        end
+        turnBack()
+
+        restoreDirection()
+        return true
+    end
+
+    -- Try right first
+    if trySide(Movement.turnRight, Movement.turnLeft) then
+        print("Successfully avoided via right")
+        return true
+    end
+
+    -- Then left
+    if trySide(Movement.turnLeft, Movement.turnRight) then
+        print("Successfully avoided via left")
+        return true
+    end
+
+    restoreDirection()
     print("Sideways avoidance failed")
     return false
 end
+
+
 
 function Movement.tryAvoidVertical()
     print("Attempting vertical avoidance...")

@@ -169,7 +169,7 @@ function ConnectionHandler.handleReconnection(id, message, now)
     
     local turtle = masterConfig.turtles[turtleName]
     if not turtle then
-        log:logDebug("Master", "Unknown turtle reconnecting, treating as new")
+        log:logDebug("Master", "Unknown turtle connecting, treating as new")
         return ConnectionHandler.handleNewConnection(id, message, now)
     end
     
