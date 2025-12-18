@@ -697,41 +697,56 @@ end
 
 function Navigation.detectDirection()
     local function testMovement(turnBefore, turnAfter)
+        -- Speichere Startposition und Richtung
+        local startX, startY, startZ = State.x, State.y, State.z
+        local startDir = State.direction
+        
         if turnBefore then turnBefore() end
         
         local x1, y1, z1 = Utils.stableGPS()
         if not x1 then
             if turnAfter then turnAfter() end
+            -- Stelle sicher, dass wir zur Startrichtung zurückkehren
+            Movement.turnTo(startDir)
             return nil
         end
         
-        Movement.forward()
+        -- Verwende raw movement für den Test
+        if not Movement.rawForward() then
+            if turnAfter then turnAfter() end
+            Movement.turnTo(startDir)
+            return nil
+        end
+        
+        -- Update Position basierend auf aktueller Richtung
+        Movement.updatePositionForward()
         os.sleep(1)
         
         local x2, y2, z2 = Utils.stableGPS()
         if not x2 then
-            if turnAfter then turnAfter() end
+            -- Kehre zur Startposition zurück
+            Movement.turnTo(startDir)
+            Navigation.goToPosition(startX, startY, startZ, startDir)
             return nil
         end
         
-        -- Return to original position
-        Movement.turnLeft()
-        Movement.turnLeft()
-        Movement.forward()
-        Movement.turnLeft()
-        Movement.turnLeft()
-        
-        if turnAfter then turnAfter() end
-        
+        -- Berechne Richtung basierend auf GPS-Differenz
         local dx = x2 - x1
         local dz = z2 - z1
         
+        local detectedDir = nil
         if math.abs(dx) > math.abs(dz) then
-            return dx > 0 and DIRECTION.EAST or DIRECTION.WEST
+            detectedDir = dx > 0 and DIRECTION.EAST or DIRECTION.WEST
         elseif math.abs(dz) > math.abs(dx) then
-            return dz > 0 and DIRECTION.SOUTH or DIRECTION.NORTH
+            detectedDir = dz > 0 and DIRECTION.SOUTH or DIRECTION.NORTH
         end
-        return nil
+        
+        -- Kehre zur Startposition und -richtung zurück
+        Navigation.goToPosition(startX, startY, startZ, startDir)
+        
+        if turnAfter then turnAfter() end
+        
+        return detectedDir
     end
     
     local maxAttempts = 8
@@ -739,13 +754,25 @@ function Navigation.detectDirection()
         print("Detecting direction... (attempt " .. attempt .. "/" .. maxAttempts .. ")")
         
         local dir = testMovement(nil, nil)
-        if dir then return dir end
+        if dir then 
+            State.direction = dir
+            print("Direction detected: " .. Utils.directionToString(dir))
+            return dir 
+        end
         
         dir = testMovement(Movement.turnLeft, Movement.turnRight)
-        if dir then return dir end
+        if dir then 
+            State.direction = dir
+            print("Direction detected: " .. Utils.directionToString(dir))
+            return dir 
+        end
         
         dir = testMovement(Movement.turnRight, Movement.turnLeft)
-        if dir then return dir end
+        if dir then 
+            State.direction = dir
+            print("Direction detected: " .. Utils.directionToString(dir))
+            return dir 
+        end
         
         os.sleep(1)
     end
