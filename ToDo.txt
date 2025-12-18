@@ -1,4 +1,5 @@
 
+Doppelte Chunk vergabe
 Mehrere Turtles bekamen den gleichen Namen
 Computer nimmt keine neuen Turtles mehr an
 

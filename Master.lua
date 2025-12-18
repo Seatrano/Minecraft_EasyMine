@@ -267,6 +267,7 @@ function ConnectionHandler.processQueue()
     
     local next = table.remove(State.assignmentQueue, 1)
     if next then
+        sleep(0.5)
         log:logDebug("Master", "Processing queued connection for " .. (next.message.turtleName or "unknown"))
         
         if next.message.reconnect and next.message.turtleName then
