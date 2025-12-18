@@ -1,5 +1,5 @@
 -- ============================================================================
--- SLAVE.LUA - Mining Turtle Controller (FIXED VERSION)
+-- SLAVE.LUA - Mining Turtle Controller (IMPROVED AVOIDANCE)
 -- ============================================================================
 
 local DeviceFinder = require("helper.getDevices")
@@ -320,17 +320,18 @@ function Movement.turnLeft()
 end
 
 function Movement.turnTo(targetDir)
-    local diff = (targetDir - State.direction) % 4
-    if diff == 1 then
-        turtle.turnRight()
-    elseif diff == 2 then
-        turtle.turnRight()
-        turtle.turnRight()
-    elseif diff == 3 then
-        turtle.turnLeft()
+    while State.direction ~= targetDir do
+        local diff = (targetDir - State.direction) % 4
+        if diff == 1 or diff == 3 then
+            if diff == 1 then
+                Movement.turnRight()
+            else
+                Movement.turnLeft()
+            end
+        else
+            Movement.turnRight()
+        end
     end
-    State.direction = targetDir
-    Communication.sendUpdate()
 end
 
 function Movement.updatePositionForward()
@@ -347,139 +348,181 @@ function Movement.updatePositionForward()
 end
 
 -- ============================================================================
--- MOVEMENT - Avoidance Strategies
+-- MOVEMENT - Raw Movement (ohne Position Update)
 -- ============================================================================
+
+function Movement.rawForward()
+    return turtle.forward()
+end
+
+function Movement.rawBack()
+    return turtle.back()
+end
+
+function Movement.rawUp()
+    return turtle.up()
+end
+
+function Movement.rawDown()
+    return turtle.down()
+end
+
+-- ============================================================================
+-- MOVEMENT - Avoidance Strategies (MIT RÜCKKEHR)
+-- ============================================================================
+
 function Movement.tryAvoidSideways()
-    print("Attempting sideways avoidance...")
-
-    local origDir = State.direction
-
-    local function restoreDirection()
-        while State.direction ~= origDir do
-            Movement.turnLeft()
-        end
+    print("Attempting sideways avoidance with return...")
+    
+    -- Speichere Ausgangsposition und -richtung
+    local startX, startY, startZ = State.x, State.y, State.z
+    local startDir = State.direction
+    
+    print(string.format("Start: X:%d Y:%d Z:%d Dir:%s", startX, startY, startZ, Utils.directionToString(startDir)))
+    
+    local function returnToStart()
+        print("Returning to start position...")
+        -- Gehe zurück zur Startposition
+        Navigation.goToPosition(startX, startY, startZ, startDir)
+        print("Returned to start position")
     end
-
-    local function moveForwardChecked()
-        if TurtleDetection.isAhead() then return false end
-        if not turtle.forward() then return false end
+    
+    local function tryDirection(firstTurn, secondTurn)
+        -- Schritt 1: Drehe zur Seite
+        firstTurn()
+        
+        -- Schritt 2: Bewege seitwärts (mit Blockcheck)
+        if TurtleDetection.isAhead() or not Movement.rawForward() then
+            secondTurn() -- Zurück zur Originalrichtung
+            return false
+        end
         Movement.updatePositionForward()
+        
+        -- Schritt 3: Drehe zurück zur Originalrichtung
+        secondTurn()
+        
+        -- Warte kurz
+        Utils.randomDelay(0.5, 1.5)
+        
+        -- Schritt 4: Versuche vorwärts zu gehen
+        if TurtleDetection.isAhead() or not Movement.rawForward() then
+            -- Fehlgeschlagen - kehre zur Startposition zurück
+            returnToStart()
+            return false
+        end
+        Movement.updatePositionForward()
+        
+        -- Schritt 5: Bewege zurück zur ursprünglichen Linie
+        firstTurn()
+        if TurtleDetection.isAhead() or not Movement.rawForward() then
+            -- Fehlgeschlagen - kehre zur Startposition zurück
+            returnToStart()
+            return false
+        end
+        Movement.updatePositionForward()
+        secondTurn()
+        
+        -- Erfolg! Wir sind eine Position vorwärts und auf der ursprünglichen Linie
+        print(string.format("Avoidance success! Now at: X:%d Y:%d Z:%d", State.x, State.y, State.z))
         return true
     end
-
-    local function trySide(turnSide, turnBack)
-        -- Step 1: move sideways
-        turnSide()
-        if not moveForwardChecked() then
-            turnBack()
-            return false
-        end
-
-        -- Step 2: face original direction and move forward
-        turnBack()
-        if not moveForwardChecked() then
-            -- rollback sideways using only forward
-            turnSide(); turnSide()
-            if not moveForwardChecked() then return false end
-            turnBack()
-            restoreDirection()
-            return false
-        end
-
-        -- Step 3: move back to original column
-        turnSide()
-        if not moveForwardChecked() then
-            -- cannot safely restore → abort hard
-            restoreDirection()
-            return false
-        end
-        turnBack()
-
-        restoreDirection()
-        return true
-    end
-
-    -- Try right first
-    if trySide(Movement.turnRight, Movement.turnLeft) then
+    
+    -- Versuche rechts
+    if tryDirection(Movement.turnRight, Movement.turnLeft) then
         print("Successfully avoided via right")
         return true
     end
-
-    -- Then left
-    if trySide(Movement.turnLeft, Movement.turnRight) then
+    
+    -- Versuche links
+    if tryDirection(Movement.turnLeft, Movement.turnRight) then
         print("Successfully avoided via left")
         return true
     end
-
-    restoreDirection()
-    print("Sideways avoidance failed")
+    
+    -- Beide Richtungen gescheitert
+    returnToStart()
+    print("Sideways avoidance failed - returned to start")
     return false
 end
 
-
-
 function Movement.tryAvoidVertical()
-    print("Attempting vertical avoidance...")
+    print("Attempting vertical avoidance with return...")
     
-    Utils.randomDelay(0.5, 2)
+    -- Speichere Ausgangsposition und -richtung
+    local startX, startY, startZ = State.x, State.y, State.z
+    local startDir = State.direction
     
-    -- Try going up and around
-    if not TurtleDetection.isAbove() and turtle.up() then
-        State.y = State.y + 1
-        Communication.sendUpdate()
-        
-        Utils.randomDelay(1, 3)
-        
-        if not TurtleDetection.isAhead() and turtle.forward() then
-            Movement.updatePositionForward()
-            
-            if not TurtleDetection.isBelow() and turtle.down() then
-                State.y = State.y - 1
-                Communication.sendUpdate()
-                print("Successfully avoided via up")
-                return true
-            else
-                print("Avoided up, staying elevated")
-                return true
-            end
-        else
-            if not TurtleDetection.isBelow() then
-                turtle.down()
-                State.y = State.y - 1
-                Communication.sendUpdate()
-            end
-        end
+    print(string.format("Start: X:%d Y:%d Z:%d Dir:%s", startX, startY, startZ, Utils.directionToString(startDir)))
+    
+    local function returnToStart()
+        print("Returning to start position...")
+        Navigation.goToPosition(startX, startY, startZ, startDir)
+        print("Returned to start position")
     end
     
-    -- Try going down and around
-    if not TurtleDetection.isBelow() and turtle.down() then
-        State.y = State.y - 1
+    local function tryVerticalDirection(moveUp, moveDown, deltaY)
+        -- Schritt 1: Bewege vertikal
+        if TurtleDetection.isAbove() and deltaY > 0 then return false end
+        if TurtleDetection.isBelow() and deltaY < 0 then return false end
+        
+        if not moveUp() then
+            return false
+        end
+        State.y = State.y + deltaY
         Communication.sendUpdate()
         
-        Utils.randomDelay(1, 3)
+        -- Warte kurz
+        Utils.randomDelay(0.5, 1.5)
         
-        if not TurtleDetection.isAhead() and turtle.forward() then
-            Movement.updatePositionForward()
-            
-            if not TurtleDetection.isAbove() and turtle.up() then
-                State.y = State.y + 1
-                Communication.sendUpdate()
-                print("Successfully avoided via down")
-                return true
-            else
-                print("Avoided down, staying lower")
-                return true
-            end
-        else
-            if not TurtleDetection.isAbove() then
-                turtle.up()
-                State.y = State.y + 1
+        -- Schritt 2: Versuche vorwärts zu gehen
+        if TurtleDetection.isAhead() or not Movement.rawForward() then
+            -- Fehlgeschlagen - zurück nach unten
+            if moveDown() then
+                State.y = State.y - deltaY
                 Communication.sendUpdate()
             end
+            returnToStart()
+            return false
         end
+        Movement.updatePositionForward()
+        
+        -- Schritt 3: Bewege zurück auf ursprüngliche Höhe
+        if TurtleDetection.isBelow() and deltaY > 0 then
+            returnToStart()
+            return false
+        end
+        if TurtleDetection.isAbove() and deltaY < 0 then
+            returnToStart()
+            return false
+        end
+        
+        if not moveDown() then
+            returnToStart()
+            return false
+        end
+        State.y = State.y - deltaY
+        Communication.sendUpdate()
+        
+        -- Erfolg!
+        print(string.format("Vertical avoidance success! Now at: X:%d Y:%d Z:%d", State.x, State.y, State.z))
+        return true
     end
     
-    print("Vertical avoidance failed")
+    -- Versuche nach oben
+    if tryVerticalDirection(Movement.rawUp, Movement.rawDown, 1) then
+        print("Successfully avoided via up")
+        return true
+    end
+    
+    -- Versuche nach unten
+    if tryVerticalDirection(Movement.rawDown, Movement.rawUp, -1) then
+        print("Successfully avoided via down")
+        return true
+    end
+    
+    -- Beide Richtungen gescheitert
+    returnToStart()
+    print("Vertical avoidance failed - returned to start")
     return false
 end
 
@@ -498,15 +541,19 @@ function Movement.up()
         
         if TurtleDetection.isAbove() then
             if not TurtleDetection.waitForClearAbove(10) then
+                print("Turtle above won't move, trying sideways avoidance...")
                 if Movement.tryAvoidSideways() then
+                    -- Nach erfolgreichem Ausweichen sind wir eine Position vorwärts
+                    -- Versuche jetzt nach oben zu gehen
                     attempts = 0
+                    continue
                 end
             end
         elseif turtle.detectUp() then
             Movement.safeDigUp()
         end
         
-        if turtle.up() then
+        if Movement.rawUp() then
             State.y = State.y + 1
             Communication.sendUpdate()
             return true
@@ -530,15 +577,19 @@ function Movement.down()
         
         if TurtleDetection.isBelow() then
             if not TurtleDetection.waitForClearBelow(10) then
+                print("Turtle below won't move, trying sideways avoidance...")
                 if Movement.tryAvoidSideways() then
+                    -- Nach erfolgreichem Ausweichen sind wir eine Position vorwärts
+                    -- Versuche jetzt nach unten zu gehen
                     attempts = 0
+                    continue
                 end
             end
         elseif turtle.detectDown() then
             Movement.safeDigDown()
         end
         
-        if turtle.down() then
+        if Movement.rawDown() then
             State.y = State.y - 1
             Communication.sendUpdate()
             return true
@@ -562,17 +613,19 @@ function Movement.forward()
         
         if TurtleDetection.isAhead() then
             if not TurtleDetection.waitForClearAhead(10) then
-                if not Movement.tryAvoidVertical() and not Movement.tryAvoidSideways() then
-                    attempts = attempts + 1
-                else
-                    attempts = 0
+                print("Turtle ahead won't move, trying avoidance...")
+                -- Versuche erst vertikal, dann horizontal
+                if Movement.tryAvoidVertical() or Movement.tryAvoidSideways() then
+                    -- Erfolgreich ausgewichen und zurückgekehrt, eine Position vorwärts
+                    return true
                 end
+                attempts = attempts + 1
             end
         elseif turtle.detect() then
             Movement.safeDig()
         end
         
-        if turtle.forward() then
+        if Movement.rawForward() then
             Movement.updatePositionForward()
             return true
         end
@@ -937,8 +990,7 @@ function Commands.resumeMining()
     -- Release current chunk
     Communication.releaseChunk()
     
-    -- FIX: Random delay to prevent all turtles reconnecting simultaneously
-    -- Different turtles will wait different amounts of time (3-8 seconds)
+    -- Random delay to prevent all turtles reconnecting simultaneously
     local delay = 3 + math.random() * 5
     log:logDebug(State.turtleName, string.format("Waiting %.1f seconds before reconnecting", delay))
     
