@@ -204,9 +204,11 @@ function ConnectionHandler.handleNewConnection(id, message, now)
         return ConnectionHandler.handleReconnection(id, message, now)
     end
     
-    -- Generate or reserve name
     if not turtleName or turtleName == "" then
+        while State.nameLock do sleep(0.5) end
+        State.nameLock = true
         turtleName = NameManager.generateNewName()
+        State.nameLock = false
     else
         NameManager.reserveName(turtleName)
     end
