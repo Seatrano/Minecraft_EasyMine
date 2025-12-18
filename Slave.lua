@@ -558,13 +558,13 @@ function Movement.forward()
         -- 3. Bewegung erneut versuchen
         if Movement.rawForward() then
             -- State abhängig von Blickrichtung aktualisieren
-            if State.direction == "north" then
+            if State.direction == DIRECTION.NORTH then
                 State.z = State.z - 1
-            elseif State.direction == "south" then
+            elseif State.direction == DIRECTION.SOUTH then
                 State.z = State.z + 1
-            elseif State.direction == "west" then
+            elseif State.direction == DIRECTION.WEST then
                 State.x = State.x - 1
-            elseif State.direction == "east" then
+            elseif State.direction == DIRECTION.EAST then
                 State.x = State.x + 1
             end
 
