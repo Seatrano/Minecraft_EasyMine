@@ -539,6 +539,8 @@ function Movement.up()
             error("COMMAND_OVERRIDE")
         end
         
+        local shouldRetry = false
+        
         if TurtleDetection.isAbove() then
             if not TurtleDetection.waitForClearAbove(10) then
                 print("Turtle above won't move, trying sideways avoidance...")
@@ -546,21 +548,23 @@ function Movement.up()
                     -- Nach erfolgreichem Ausweichen sind wir eine Position vorwärts
                     -- Versuche jetzt nach oben zu gehen
                     attempts = 0
-                    continue
+                    shouldRetry = true
                 end
             end
         elseif turtle.detectUp() then
             Movement.safeDigUp()
         end
         
-        if Movement.rawUp() then
-            State.y = State.y + 1
-            Communication.sendUpdate()
-            return true
+        if not shouldRetry then
+            if Movement.rawUp() then
+                State.y = State.y + 1
+                Communication.sendUpdate()
+                return true
+            end
+            
+            attempts = attempts + 1
+            Utils.randomDelay(0.3, 0.7)
         end
-        
-        attempts = attempts + 1
-        Utils.randomDelay(0.3, 0.7)
     end
     
     error("Could not move up after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
@@ -575,6 +579,8 @@ function Movement.down()
             error("COMMAND_OVERRIDE")
         end
         
+        local shouldRetry = false
+        
         if TurtleDetection.isBelow() then
             if not TurtleDetection.waitForClearBelow(10) then
                 print("Turtle below won't move, trying sideways avoidance...")
@@ -582,21 +588,23 @@ function Movement.down()
                     -- Nach erfolgreichem Ausweichen sind wir eine Position vorwärts
                     -- Versuche jetzt nach unten zu gehen
                     attempts = 0
-                    continue
+                    shouldRetry = true
                 end
             end
         elseif turtle.detectDown() then
             Movement.safeDigDown()
         end
         
-        if Movement.rawDown() then
-            State.y = State.y - 1
-            Communication.sendUpdate()
-            return true
+        if not shouldRetry then
+            if Movement.rawDown() then
+                State.y = State.y - 1
+                Communication.sendUpdate()
+                return true
+            end
+            
+            attempts = attempts + 1
+            Utils.randomDelay(0.3, 0.7)
         end
-        
-        attempts = attempts + 1
-        Utils.randomDelay(0.3, 0.7)
     end
     
     error("Could not move down after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
