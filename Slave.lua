@@ -382,10 +382,10 @@ local dodgeStack = {}
 -- inverse Bewegungen
 local inverse = {
     forward = "back",
-    up      = "down",
-    down    = "up",
-    left    = "right",
-    right   = "left"
+    up = "down",
+    down = "up",
+    left = "right",
+    right = "left"
 }
 
 local function tryMove(step)
@@ -405,7 +405,6 @@ local function tryMove(step)
     end
 end
 
-
 local function safeUndo(step)
     local inverseStep = inverse[step]
 
@@ -418,7 +417,6 @@ local function safeUndo(step)
     Movement.dodge()
     return false
 end
-
 
 function Movement.dodge()
     local startDir = State.direction
@@ -581,7 +579,6 @@ function Movement.forward()
     error("Could not move forward after " .. MAX_MOVEMENT_ATTEMPTS .. " attempts")
 end
 
-
 -- ============================================================================
 -- NAVIGATION
 -- ============================================================================
@@ -590,10 +587,7 @@ Navigation = {}
 
 function Navigation.goToPosition(targetX, targetY, targetZ, targetDir)
     State.status = "Going to Position"
-    print(string.format(
-        "Going to X:%d Y:%d Z:%d Dir:%s",
-        targetX, targetY, targetZ, Utils.directionToString(targetDir)
-    ))
+    print(string.format("Going to X:%d Y:%d Z:%d Dir:%s", targetX, targetY, targetZ, Utils.directionToString(targetDir)))
 
     local function guardedMove(conditionFn, moveFn, maxSteps)
         local steps = 0
@@ -607,55 +601,57 @@ function Navigation.goToPosition(targetX, targetY, targetZ, targetDir)
     end
 
     -- Move Y
-    guardedMove(
-        function() return State.y < targetY end,
-        Movement.up,
-        math.abs(targetY - State.y) + 10
-    )
+    guardedMove(function()
+        return State.y < targetY
+    end, Movement.up, math.abs(targetY - State.y) + 10)
 
-    guardedMove(
-        function() return State.y > targetY end,
-        Movement.down,
-        math.abs(State.y - targetY) + 10
-    )
+    local function guardedMove(conditionFn, moveFn, maxProgress)
+        local progress = 0
+
+        while conditionFn() do
+            local beforeX, beforeY, beforeZ = State.x, State.y, State.z
+
+            moveFn()
+
+            -- Nur echten Fortschritt zählen
+            if State.x ~= beforeX or State.y ~= beforeY or State.z ~= beforeZ then
+                progress = progress + 1
+            end
+
+            if progress > maxProgress then
+                error("NAVIGATION_STUCK")
+            end
+        end
+    end
 
     -- Move X
     if targetX > State.x then
         Movement.turnTo(DIRECTION.EAST)
-        guardedMove(
-            function() return State.x < targetX end,
-            Movement.forward,
-            math.abs(targetX - State.x) + 10
-        )
+        guardedMove(function()
+            return State.x < targetX
+        end, Movement.forward, math.abs(targetX - State.x) + 10)
     elseif targetX < State.x then
         Movement.turnTo(DIRECTION.WEST)
-        guardedMove(
-            function() return State.x > targetX end,
-            Movement.forward,
-            math.abs(State.x - targetX) + 10
-        )
+        guardedMove(function()
+            return State.x > targetX
+        end, Movement.forward, math.abs(State.x - targetX) + 10)
     end
 
     -- Move Z
     if targetZ > State.z then
         Movement.turnTo(DIRECTION.SOUTH)
-        guardedMove(
-            function() return State.z < targetZ end,
-            Movement.forward,
-            math.abs(targetZ - State.z) + 10
-        )
+        guardedMove(function()
+            return State.z < targetZ
+        end, Movement.forward, math.abs(targetZ - State.z) + 10)
     elseif targetZ < State.z then
         Movement.turnTo(DIRECTION.NORTH)
-        guardedMove(
-            function() return State.z > targetZ end,
-            Movement.forward,
-            math.abs(State.z - targetZ) + 10
-        )
+        guardedMove(function()
+            return State.z > targetZ
+        end, Movement.forward, math.abs(State.z - targetZ) + 10)
     end
 
     Movement.turnTo(targetDir)
 end
-
 
 function Navigation.detectDirection()
     local function testMovement(turnBefore, turnAfter)
