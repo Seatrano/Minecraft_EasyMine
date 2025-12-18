@@ -600,10 +600,16 @@ function Navigation.goToPosition(targetX, targetY, targetZ, targetDir)
         end
     end
 
-    -- Move Y
-    guardedMove(function()
-        return State.y < targetY
-    end, Movement.up, math.abs(targetY - State.y) + 10)
+    -- Move y
+    if targetY < State.y then
+        guardedMove(function()
+            return State.y > targetY
+        end, Movement.down, math.abs(State.y - targetY) + 10)
+    elseif targetY > State.y then
+        guardedMove(function()
+            return State.y < targetY
+        end, Movement.up, math.abs(targetY - State.y) + 10)
+    end
 
     local function guardedMove(conditionFn, moveFn, maxProgress)
         local progress = 0
